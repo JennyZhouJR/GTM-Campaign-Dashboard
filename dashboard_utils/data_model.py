@@ -67,7 +67,8 @@ COLLAB_STAGE_OPTIONS = [
     "1st script in progress",
     "1st script reviewed, awaiting final",
     "1st draft in progress",
-    "final draft in progress",
+    "Final Draft in progress",
+    "Final script approved, video in progress",
     "Final Review",
     "Approved for posting",
 ]

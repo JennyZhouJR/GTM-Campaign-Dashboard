@@ -18,13 +18,14 @@ STATUS_COLORS = {
 }
 
 COLLAB_STAGE_COLORS = {
-    "Awaiting brief": "#FCC419",                        # bright gold
-    "1st script in progress": "#FF922B",                # tangerine
-    "1st script reviewed, awaiting final": "#74C0FC",   # bright sky blue
-    "1st draft in progress": "#63E6BE",                 # fresh mint
-    "final draft in progress": "#A9E34B",               # lime green
-    "Final Review": "#F06595",                          # vibrant pink
-    "Approved for posting": "#51CF66",                  # vivid green
+    "Awaiting brief": "#FCC419",                                    # bright gold
+    "1st script in progress": "#FF922B",                            # tangerine
+    "1st script reviewed, awaiting final": "#74C0FC",               # bright sky blue
+    "1st draft in progress": "#63E6BE",                             # fresh mint
+    "Final Draft in progress": "#A9E34B",                           # lime green
+    "Final script approved, video in progress": "#748FFC",          # periwinkle
+    "Final Review": "#F06595",                                      # vibrant pink
+    "Approved for posting": "#51CF66",                              # vivid green
 }
 
 COLLAB_STAGE_ORDER = [
@@ -32,7 +33,8 @@ COLLAB_STAGE_ORDER = [
     "1st script in progress",
     "1st script reviewed, awaiting final",
     "1st draft in progress",
-    "final draft in progress",
+    "Final Draft in progress",
+    "Final script approved, video in progress",
     "Final Review",
     "Approved for posting",
 ]
@@ -99,15 +101,21 @@ def collab_stage_detail(df: pd.DataFrame):
         return None
 
     grouped = df_stage.groupby([col, "POC"]).size().reset_index(name="Count")
-    stage_order = [s for s in COLLAB_STAGE_ORDER if s in grouped[col].values]
-    if not stage_order:
-        stage_order = grouped[col].unique().tolist()
+    # Match case-insensitively, preserve original casing from data
+    data_stages = grouped[col].unique().tolist()
+    stage_order_lower = [s.lower() for s in COLLAB_STAGE_ORDER]
+    ordered = [s for sl in stage_order_lower
+               for s in data_stages if s.lower() == sl]
+    # Add any unknown stages at the end
+    ordered += [s for s in data_stages if s.lower() not in stage_order_lower]
+    # Plotly horizontal bar: reverse so first stage appears at TOP
+    chart_order = list(reversed(ordered))
 
     fig = px.bar(
         grouped, y=col, x="Count", color="POC",
         orientation="h",
         color_discrete_map=POC_COLORS,
-        category_orders={col: stage_order},
+        category_orders={col: chart_order},
         title="Collaboration Stage (by POC)",
         hover_data=["POC", "Count"],
     )
@@ -131,21 +139,33 @@ def collab_stage_breakdown(df: pd.DataFrame) -> dict:
     if col not in df.columns:
         return {}
     result = {}
-    # Known stages in order
+    # Build case-insensitive map: lowercase -> actual display label
+    known_lower = {s.lower(): s for s in COLLAB_STAGE_ORDER}
+    # Known stages in order — match case-insensitively against actual Sheet values
+    stage_to_rows = {}
+    for actual_val in df[col].dropna().unique():
+        sv = actual_val.strip()
+        if not sv:
+            continue
+        matched_key = known_lower.get(sv.lower())
+        if matched_key:
+            stage_to_rows.setdefault(matched_key, []).extend(
+                [(r.get("Name", ""), r.get("POC", ""))
+                 for _, r in df[df[col].str.strip() == sv].iterrows()]
+            )
+        else:
+            # Unknown stage — add as-is
+            stage_to_rows.setdefault(sv, []).extend(
+                [(r.get("Name", ""), r.get("POC", ""))
+                 for _, r in df[df[col].str.strip() == sv].iterrows()]
+            )
+    # Output in COLLAB_STAGE_ORDER order, then unknowns
     for stage in COLLAB_STAGE_ORDER:
-        rows = df[df[col].str.strip() == stage.strip()]
-        if not rows.empty:
-            people = [(r.get("Name", ""), r.get("POC", "")) for _, r in rows.iterrows()]
+        if stage in stage_to_rows:
+            result[stage] = stage_to_rows[stage]
+    for stage, people in stage_to_rows.items():
+        if stage not in result:
             result[stage] = people
-    # Catch-all: any stage in the data not in COLLAB_STAGE_ORDER
-    known = {s.strip().lower() for s in COLLAB_STAGE_ORDER}
-    for stage_val in df[col].dropna().unique():
-        sv = stage_val.strip()
-        if sv and sv.lower() not in known:
-            rows = df[df[col].str.strip() == sv]
-            if not rows.empty:
-                people = [(r.get("Name", ""), r.get("POC", "")) for _, r in rows.iterrows()]
-                result[sv] = people
     return result
 
 
