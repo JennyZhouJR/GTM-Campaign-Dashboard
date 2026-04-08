@@ -31,6 +31,43 @@ from dashboard_utils.charts import (
 
 st.set_page_config(page_title="Campaign Dashboard", page_icon="\U0001f4ca", layout="wide")
 
+# ─── Password gate ────────────────────────────────────────────────────────────
+
+def _check_password():
+    """Simple password gate. Password stored in st.secrets['app_password'].
+    Falls back to no-auth if secret is not configured (local dev)."""
+    import streamlit as st
+
+    # If no secret configured, skip auth (local dev)
+    try:
+        correct_pw = st.secrets["app_password"]
+    except Exception:
+        return True  # local dev: no password required
+
+    if st.session_state.get("_authenticated"):
+        return True
+
+    st.markdown("""
+    <div style="max-width:380px; margin:80px auto; text-align:center;">
+        <div style="font-size:2.5em; margin-bottom:8px;">📊</div>
+        <h2 style="font-family:'DM Sans',sans-serif; color:#1F2937; margin-bottom:4px;">Campaign Dashboard</h2>
+        <p style="color:#6B7280; font-size:0.9em; margin-bottom:28px;">Internal use only · Enter password to continue</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        pw = st.text_input("Password", type="password", placeholder="Enter password...", label_visibility="collapsed")
+        if st.button("Continue →", use_container_width=True):
+            if pw == correct_pw:
+                st.session_state["_authenticated"] = True
+                st.rerun()
+            else:
+                st.error("Incorrect password.")
+    st.stop()
+
+_check_password()
+
 # ─── Playful confetti-inspired CSS ───────────────────────────────────────────
 
 st.markdown("""
