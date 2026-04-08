@@ -18,12 +18,13 @@ STATUS_COLORS = {
 }
 
 COLLAB_STAGE_COLORS = {
-    "Awaiting brief": "#FCC419",              # bright gold
-    "1st script in progress": "#FF922B",      # tangerine
-    "1st script reviewed, awaiting final": "#74C0FC",  # bright sky blue
-    "1st draft in progress": "#63E6BE",       # fresh mint
-    "Final Review": "#F06595",                # vibrant pink
-    "Approved for posting": "#51CF66",        # vivid green
+    "Awaiting brief": "#FCC419",                        # bright gold
+    "1st script in progress": "#FF922B",                # tangerine
+    "1st script reviewed, awaiting final": "#74C0FC",   # bright sky blue
+    "1st draft in progress": "#63E6BE",                 # fresh mint
+    "final draft in progress": "#A9E34B",               # lime green
+    "Final Review": "#F06595",                          # vibrant pink
+    "Approved for posting": "#51CF66",                  # vivid green
 }
 
 COLLAB_STAGE_ORDER = [
@@ -31,6 +32,7 @@ COLLAB_STAGE_ORDER = [
     "1st script in progress",
     "1st script reviewed, awaiting final",
     "1st draft in progress",
+    "final draft in progress",
     "Final Review",
     "Approved for posting",
 ]
@@ -123,16 +125,27 @@ def collab_stage_detail(df: pd.DataFrame):
 
 
 def collab_stage_breakdown(df: pd.DataFrame) -> dict:
-    """Return a dict: {stage: [(name, poc), ...]} for kanban display."""
+    """Return a dict: {stage: [(name, poc), ...]} for kanban display.
+    Shows all stages in COLLAB_STAGE_ORDER first, then any unknown stages."""
     col = "Collaboration Stage"
     if col not in df.columns:
         return {}
     result = {}
+    # Known stages in order
     for stage in COLLAB_STAGE_ORDER:
-        rows = df[df[col] == stage]
+        rows = df[df[col].str.strip() == stage.strip()]
         if not rows.empty:
             people = [(r.get("Name", ""), r.get("POC", "")) for _, r in rows.iterrows()]
             result[stage] = people
+    # Catch-all: any stage in the data not in COLLAB_STAGE_ORDER
+    known = {s.strip().lower() for s in COLLAB_STAGE_ORDER}
+    for stage_val in df[col].dropna().unique():
+        sv = stage_val.strip()
+        if sv and sv.lower() not in known:
+            rows = df[df[col].str.strip() == sv]
+            if not rows.empty:
+                people = [(r.get("Name", ""), r.get("POC", "")) for _, r in rows.iterrows()]
+                result[sv] = people
     return result
 
 
