@@ -1,0 +1,425 @@
+# Chapter 1：自动化 CSV 清洗规则 V1
+## Influencer Sourcing — 主力矿工模式（CSV 相似推荐）
+
+> 版本：V1.2（2026-04-07，新增品牌账号排除 + 地理穿透 + 活跃度升级）
+> 适用范围：NanoInf 或同类插件导出的 similar influencer CSV
+> 文档用途：供工程师（Claude Code / Codex）直接照此实现 Python 脚本
+> ✅ 所有参数已由 Jenny 确认，无 PENDING 项
+
+---
+
+## 0. 输入 / 输出
+
+### 输入
+NanoInf 导出的 CSV 文件，已知字段：
+`URL`, `CHANNEL`, `POST PER MONTH`, `SIMILARITY`, `LAST UPDATED`, `COUNTRY`, `SUBSCRIBERS`, `POSTS`, `VIEWS`（recent median views）, `ER`, `VR`, `EMAIL`, `VALID EMAIL`, `LINKS`, `TOPICS`, `AUDIENCES`, `USERNAME`
+
+### 输出
+通过全部过滤规则的账号，写入 Google Sheet 主表（字段映射见 Step 6）
+
+### 整体判定原则（简化版）
+- **只有两种结果：写入（A档）或 Drop**
+- ER ≥ 0.2%（最终基于近期8条 Reels 计算）→ 写入
+- ER < 0.2% 或触发任意 Drop 规则 → 丢弃，不进 Sheet
+
+---
+
+## 1. Step 1：基础门槛过滤（本地，无需 API）
+
+以下任一条件不满足 → **Drop**
+
+| 字段 | 条件 | 说明 |
+|---|---|---|
+| `COUNTRY` | `== "United States"` 或 `== "Canada"` | 大小写不敏感，兜底验证（CSV 理论上已过滤） |
+| `SUBSCRIBERS` | `10,000 ≤ value ≤ 100,000` | 硬性范围，不可放宽 |
+| `CHANNEL` | `== "Instagram"` | 当前只处理 Instagram |
+
+**注意：** `SUBSCRIBERS` 字段在 CSV 中可能是 `"12,345"` 字符串格式，解析时去掉逗号再转 int。
+
+---
+
+## 2. Step 2：本地粗筛（无需 API）
+
+### 2-A：全局 ER 粗筛
+- 读取 CSV 的 `ER` 字段（整体历史 ER）
+- `ER < 0.2%` → **Drop**
+- `ER` 字段可能是字符串 `"1.5%"` 或浮点 `0.015`，统一转为百分比数字再比较
+
+### 2-B：角色排除（2026-04-07 扩展词表）
+以下词出现在 `TOPICS` 或 `AUDIENCES` 字段 → **Drop**
+```
+founder, co-founder, ceo, coo, cfo, cto, owner, entrepreneur, director, managing partner, president, principal, agency
+```
+匹配方式：全小写，**整词正则匹配**（避免误杀 "entrepreneurship tips"）
+```python
+import re
+ROLE_EXCLUDE = r'\b(founder|co-founder|ceo|coo|cfo|cto|owner|entrepreneur|director|managing\s+partner|president|principal|agency)\b'
+```
+
+### 2-C：内容调性负面关键词（绝对红线）
+以下词出现在 `TOPICS` 或 `AUDIENCES` 字段 → **Drop**（子字符串匹配即可）
+
+```python
+HARD_EXCLUDE_TOPICS = [
+    # 金融投机类
+    "crypto", "cryptocurrency", "bitcoin", "nft", "forex", "trading signals",
+    "options trading", "dropshipping", "make money online", "passive income",
+    "mlm", "network marketing", "affiliate marketing",
+
+    # 个人理财 / 财富类（2026-04-07 补充）
+    "personal finance", "wealth building", "investing", "income stream",
+    "financial independence", "online money", "real estate investing",
+    "saving money", "digital nomad", "online business", "digital products",
+
+    # 身体/健康类
+    "fitness", "gym", "workout", "bodybuilding", "weight loss", "diet",
+    "nutrition", "supplements", "wellness", "yoga",
+
+    # 生活方式类（与职业发展无关）
+    "travel", "food", "foodie", "cooking", "recipe", "beauty", "makeup",
+    "skincare", "fashion", "style", "ootd", "dance", "dancer",
+
+    # 情感/关系类（2026-04-07 补充）
+    "dating advice", "relationship coaching", "life coaching",
+    "mom life", "working mom",
+
+    # 政治/宗教/敏感类
+    "politics", "political", "religion", "astrology", "horoscope",
+
+    # 成人内容
+    "nsfw", "onlyfans", "adult",
+
+    # 纯财经（非求职方向）
+    "financial advisor", "cfp", "certified financial planner",
+    "real estate agent", "realtor", "mortgage",
+
+    # 营销类（2026-04-07 补充）
+    "social media marketing",
+]
+```
+
+### 2-D：品牌官方账号排除（2026-04-07 新增）
+
+NanoInf 相似推荐会把品牌方自己的官方账号推进来。以下信号匹配 → **Drop**：
+
+```python
+BRAND_SIGNALS = [
+    "official", "™", "®", "we are", "our product", "our mission",
+    "download now", "sign up", "founded in", "est.", "since ",
+    "our team", "we help", "we build", "our app", "try it free",
+]
+
+def is_brand_account(topics, audiences, username):
+    text = (topics + ' ' + audiences).lower()
+    # 检查品牌特征词
+    for signal in BRAND_SIGNALS:
+        if signal.lower() in text:
+            return True
+    # 品牌号通常用户名 = 品牌名（无人名特征）
+    # 此项为辅助信号，不单独使用
+    return False
+```
+
+**注意：** 此规则在 Step 2 本地粗筛阶段执行（仅检查 CSV `TOPICS` / `AUDIENCES` 字段）。更精确的 bio 检测在 Step 5 用 Apify 数据二次验证。
+
+### 2-E：地理穿透检测（2026-04-07 新增）
+
+部分用户 country 字段显示 US/CA 但实际在印度。对 **所有** 通过 Country 初筛的账号，在 `TOPICS` / `AUDIENCES` 中检测以下信号 → **Drop**：
+
+```python
+INDIA_FLAG = '🇮🇳'
+INDIA_CITIES = [
+    'mumbai', 'delhi', 'bangalore', 'bengaluru', 'hyderabad',
+    'chennai', 'pune', 'kolkata', 'ahmedabad', 'noida',
+    'gurgaon', 'gurugram', 'jaipur', 'lucknow', 'chandigarh',
+]
+
+def has_india_signals(topics, audiences):
+    text = (topics + ' ' + audiences).lower()
+    if INDIA_FLAG in (topics + ' ' + audiences):
+        return True
+    for city in INDIA_CITIES:
+        if city in text:
+            return True
+    return False
+```
+
+**注意：** Step 5 中用 Apify 返回的 `biography` 做更精确的二次检测（检查 bio emoji + 印度城市 + 帖子 location tag）。
+
+---
+
+## 3. Step 3：查重（本地，读 Google Sheet）
+
+从 Google Sheet D 列提取所有已有 Profile Link，解析出 username，与 CSV `USERNAME` 对比：
+
+```python
+import re
+
+def extract_username(url):
+    match = re.search(r'instagram\.com/([^/?]+)', url or '')
+    return match.group(1).lower().strip('/') if match else ''
+
+# 已有账号集合
+existing_usernames = {extract_username(link) for link in sheet_d_column}
+
+# 过滤
+if csv_row['USERNAME'].lower().strip('/') in existing_usernames:
+    # Drop（已存在，跳过）
+    continue
+```
+
+---
+
+## 4. Step 4：Apify Profile Scraper（批量调用）
+
+对通过 Step 1-3 的账号，批量调用 Apify 拉取近期帖子数据。
+
+**Actor：** `apify/instagram-profile-scraper`
+**配置：** `includeAboutSection: true`
+**成本参考：** ~$8.30 / 1,000 profiles
+**输入：** CSV `URL` 字段（完整 Instagram Profile URL）
+
+---
+
+## 5. Step 5：近期8条 Reels 计算 + 最终 ER 判定
+
+### 5-A：提取 Reels
+
+从 Apify 返回的 posts 数组：
+1. 只保留 `productType == "clips"` 或 `type == "Video"` 的帖子（Reels/视频）
+2. 排除 `isPinned == true` 的帖子（如字段缺失，用播放量异常辅助判断）
+3. 按 `timestamp` 降序，取前 **8 条**
+4. 若有效 Reels < 3 条 → 标记 `SKIP`（数据不可信，不写入 Sheet，不计入 Drop 统计）
+
+### 5-B：计算指标
+
+```python
+reels_8 = [...]  # 已过滤的最新8条
+
+# Avg Views（写入 Sheet O 列）
+views_list = [post['videoViewCount'] for post in reels_8]
+avg_views = sum(views_list) / len(views_list)
+
+# 近期 ER%（写入 Sheet Q 列）
+avg_likes    = sum(post['likesCount'] for post in reels_8) / len(reels_8)
+avg_comments = sum(post['commentsCount'] for post in reels_8) / len(reels_8)
+recent_er    = (avg_likes + avg_comments) / followers_count * 100
+# 例：recent_er = 2.3 表示 2.3%，写入 Sheet 时不加 % 符号
+```
+
+### 5-C：最终 ER 判定（最关键的一刀）
+
+| 条件 | 操作 |
+|---|---|
+| `recent_er < 0.2%` | **Drop**，不写入 Sheet |
+| `recent_er ≥ 0.2%` | **通过，写入 Sheet（A档）** |
+
+**就这一条规则，无 B 档，无例外。**
+
+### 5-D：活跃度检测（2026-04-07 升级为硬性规则）
+
+**过去 30 天内至少发过 4 条 Reels（仅统计视频，图文/轮播不算），否则直接 Drop。**
+
+```python
+from datetime import datetime, timezone
+
+recent_30d = 0
+for p in reels_raw:
+    # 只统计 Reels：productType == "clips" 或 type == "Video"
+    product_type = (p.get("productType") or "").lower()
+    post_type = (p.get("type") or "").lower()
+    if product_type != "clips" and post_type != "video":
+        continue
+    ts = p.get("timestamp", "")
+    if not ts:
+        continue
+    post_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    if (datetime.now(timezone.utc) - post_dt).days <= 30:
+        recent_30d += 1
+
+if recent_30d < 4:
+    # Drop（Reels 活跃度不足）
+    continue
+```
+
+**Why:** 品牌合作需要对方持续产出视频内容。图文帖不纳入统计，只看 Reels 产出频率。旧规则（60天未发才软标注）太松，已废弃。
+
+不使用 CSV 的 `POST PER MONTH` 字段，月初数据不准。
+
+### 5-E：Bio 级品牌账号二次验证（2026-04-07 新增）
+
+用 Apify 返回的 `biography` 做更精确的品牌账号检测（补充 Step 2-D 的粗筛）：
+
+```python
+BRAND_BIO_SIGNALS = [
+    "official", "™", "®", "we are", "our product", "our mission",
+    "download now", "sign up", "founded in", "est.", "since ",
+    "our team", "we help", "we build", "our app", "try it free",
+    "join us", "follow us for", "#ad", "shop now",
+]
+
+def is_brand_bio(bio):
+    if not bio:
+        return False
+    bio_lower = bio.lower()
+    return any(signal.lower() in bio_lower for signal in BRAND_BIO_SIGNALS)
+```
+
+### 5-F：Bio 级地理穿透二次验证（2026-04-07 新增）
+
+用 Apify 返回的 `biography` + 帖子 `location` 做印度地理穿透检测：
+
+```python
+def has_india_bio_signals(bio, posts):
+    if not bio:
+        bio = ''
+    # 检查 bio 里的印度旗帜 emoji
+    if '🇮🇳' in bio:
+        return True
+    # 检查 bio 里的印度城市
+    bio_lower = bio.lower()
+    for city in INDIA_CITIES:
+        if city in bio_lower:
+            return True
+    # 检查帖子 location tag
+    for post in (posts or []):
+        loc = (post.get('locationName') or '').lower()
+        if any(city in loc for city in INDIA_CITIES) or 'india' in loc:
+            return True
+    return False
+```
+
+### 5-G：语言检测（零额外成本）
+
+使用 Python `langdetect` 库（`pip install langdetect`，本地免费，无需 API）检测 Apify 返回的 `biography` 字段：
+
+```python
+from langdetect import detect, LangDetectException
+
+def is_english_bio(bio_text):
+    if not bio_text or len(bio_text.strip()) < 10:
+        return True  # bio 太短无法判断，放行
+    try:
+        return detect(bio_text) == 'en'
+    except LangDetectException:
+        return True  # 检测失败，放行（不误杀）
+
+if not is_english_bio(apify_result['biography']):
+    # Drop（非英文账号）
+    continue
+```
+
+---
+
+## 6. Step 6：写入 Google Sheet（Apps Script setValues）
+
+### 字段映射表
+
+| Sheet 列 | Index | 数据来源 | 注意事项 |
+|---|---|---|---|
+| A (Date of Contact) | 0 | `datetime.today().strftime('%Y-%m-%d')` | |
+| B (POC) | 1 | 空字符串 `""` | 人工填写 |
+| C (Name) | 2 | Apify `fullName`，fallback 到 CSV `USERNAME` | |
+| D (Profile Link) | 3 | CSV `URL` | 必须完整 URL：`https://www.instagram.com/[username]` |
+| E (Contact) | 4 | CSV `VALID EMAIL`（优先）或 `EMAIL`，均空则 `""` | |
+| F (Seniority) | 5 | `""` | 人工填写 |
+| G (Job Function) | 6 | `""` | 人工填写 |
+| H (Channel) | 7 | `"Instagram"` | ⚠️ 必须用 Apps Script 写入，直接 setValues 会绕过 dropdown 限制 |
+| I (Followers) | 8 | CSV `SUBSCRIBERS`（int，去掉逗号） | |
+| J (Country) | 9 | Apify `about.country`，fallback 到 CSV `COUNTRY` | 以 Apify 为准 |
+| K-N | 10-13 | `""` | 留空 |
+| O (Avg Views) | 14 | 近期8条 Reels 的 `avg_views`（int，取整） | |
+| P (Audience Geo) | 15 | `""` | 人工填写截图 |
+| Q (ER) | 16 | 近期8条 `recent_er`，保留两位小数，**不带 % 符号** | 如 `2.35` 而非 `"2.35%"` |
+| R (Confirm Date) | 17 | `""` | |
+| S (Notes) | 18 | `"Similar-[seed账号名]"` | 记录来源 seed |
+| T-Z | 19-25 | `""` | |
+| AA (Source/Topics) | 26 | CSV `TOPICS` 字段原始内容（逗号分隔字符串） | Chapter 1 复用此列存 Topics |
+
+### 写入规则
+- **写入方式：** Apps Script `FillData.gs` 的 `setValues()` 函数，**不能用 clipboard paste**
+- **写入位置：** 动态获取 Sheet 最后有数据行的下一行，**不能硬编码行号**
+- **数组长度：** 每行数组必须是 27 个元素（对应 A-AA 列），空列填 `""`
+
+```python
+# 示例：每行数据格式
+row = [
+    date,        # A(0)
+    "",          # B(1) POC
+    name,        # C(2)
+    profile_url, # D(3)
+    email,       # E(4)
+    "", "",      # F(5), G(6)
+    "Instagram", # H(7)
+    followers,   # I(8)
+    country,     # J(9)
+    "", "", "", "",  # K-N (10-13)
+    avg_views,   # O(14)
+    "",          # P(15)
+    recent_er,   # Q(16)
+    "", "",      # R(17), S(18) Notes
+    "", "", "", "", "", "", "",  # T-Z (19-25)
+    topics,      # AA(26)
+]
+# 共 27 个元素，index 0-26
+```
+
+---
+
+## 7. 完整流程图
+
+```
+NanoInf CSV 导入
+      ↓
+[Step 1] 基础门槛：Country(US/CA) + Subscribers(10K-100K) + Channel(Instagram)
+      ↓ Drop
+[Step 2-A] CSV ER 粗筛：全局 ER < 0.2% → Drop
+      ↓ Drop
+[Step 2-B] 角色排除：TOPICS/AUDIENCES 含 founder/CEO/director 等 → Drop
+      ↓ Drop
+[Step 2-C] 调性红线：TOPICS/AUDIENCES 含 fitness/crypto 等 → Drop
+      ↓ Drop
+[Step 2-D] 品牌官方账号排除：TOPICS/AUDIENCES 含 official/™/® 等 → Drop
+      ↓ Drop
+[Step 2-E] 地理穿透粗筛：TOPICS/AUDIENCES 含 🇮🇳/印度城市名 → Drop
+      ↓ Drop
+[Step 3] 查重：USERNAME 已在 Sheet D 列 → Drop
+      ↓
+[Step 4] Apify Profile Scraper 批量调用
+      ↓
+[Step 5-A] 提取近期8条 Reels（排除 pinned）
+           < 3 条 → SKIP（不计入 Drop）
+      ↓
+[Step 5-B] 计算 avg_views + recent_er
+      ↓
+[Step 5-C] 最终 ER 判定：recent_er < 0.2% → Drop
+      ↓
+[Step 5-D] 活跃度：过去30天 < 4条视频 → Drop
+      ↓
+[Step 5-E] Bio 品牌账号二次验证 → Drop
+      ↓
+[Step 5-F] Bio 地理穿透二次验证（🇮🇳 + 印度城市 + 帖子location）→ Drop
+      ↓
+[Step 5-G] 语言检测：bio 非英文 → Drop（langdetect，本地免费）
+      ↓
+✅ 写入 Google Sheet（Apps Script setValues，A-AA 共27列）
+```
+
+---
+
+## 8. 踩雷清单（工程师必读）
+
+1. **`SUBSCRIBERS` 格式**：CSV 里可能是 `"12,345"` 字符串，需 `int(str.replace(',', ''))` 处理
+2. **`ER` 格式**：可能是 `"1.5%"` 或 `0.015`，统一转换：`float(er.strip('%')) if '%' in er else float(er) * 100`
+3. **Profile Link 末尾斜杠**：查重时统一 `.strip('/')` 再比较
+4. **Reels 数量不足**：< 3 条标记 SKIP，不要 Drop（账号可能是新账号或主发图文）
+5. **isPinned 字段缺失**：Apify 不同版本此字段可能为 null，建议同时检查播放量是否远超其他帖子（>5倍均值）作为辅助判断
+6. **H 列 dropdown**：Apps Script 的 `setValues()` 可直接写文本 `"Instagram"`，但如果 Sheet 有 data validation，需确认 validation 规则包含 "Instagram" 这个选项
+7. **AA 列**：统一存 Topics（CSV `TOPICS` 字段内容）。历史 Chapter 2 的 Source Hashtag 字段已废弃，不需要向前兼容
+8. **`langdetect` 随机性**：该库结果有一定随机性，短文本尤其不稳定。建议对 < 10 字符的 bio 直接放行，不做语言检测
+9. **Country fallback**：Apify `about.country` 有时返回 null（用户未填），此时回退使用 CSV `COUNTRY` 字段；如果两者都为空，**不 Drop**，写入 Sheet 并在 Notes 备注 `"Country unverified"`
+10. **写入行号动态获取**：`sheet.getLastRow() + 1`，每批写完重新获取，不能在脚本开始时一次性计算好
+11. **品牌账号检测两阶段**：Step 2-D 粗筛（CSV TOPICS/AUDIENCES）+ Step 5-E 精筛（Apify bio），两层都要做
+12. **印度地理穿透两阶段**：Step 2-E 粗筛（CSV 字段）+ Step 5-F 精筛（bio emoji + 城市名 + 帖子 location），即使 Country = US 也要检查
+13. **活跃度硬性 Drop**：4/7 起改为过去 30 天 ≥ 4 条视频才通过，旧的 60 天软标注已废弃
+14. **角色排除扩展**：4/7 起新增 director, managing partner, president, principal, agency

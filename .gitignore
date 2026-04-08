@@ -1,0 +1,26 @@
+# Credentials — NEVER commit these
+dao/
+.env
+*.json
+*.envapify*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# Streamlit local
+.streamlit/
+
+# macOS
+.DS_Store
+
+# Output / input data
+output/
+input_csvs/
+archived/
+
+# Logs
+*.log
+nohup.out
