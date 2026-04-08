@@ -64,12 +64,10 @@ STATUS_OPTIONS = ["", "TBD", "Contacted", "Nego", "Confirm", "Reject", "Drop"]
 COLLAB_STAGE_OPTIONS = [
     "",
     "Awaiting brief",
-    "1st script in progress",
-    "1st script reviewed, awaiting final",
-    "1st draft in progress",
-    "Final Draft in progress",
-    "Final script approved, video in progress",
-    "Final Review",
+    "Script in progress",
+    "Script feedback",
+    "Video in progress",
+    "Video feedback",
     "Approved for posting",
 ]
 

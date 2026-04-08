@@ -18,24 +18,20 @@ STATUS_COLORS = {
 }
 
 COLLAB_STAGE_COLORS = {
-    "Awaiting brief": "#FCC419",                                    # bright gold
-    "1st script in progress": "#FF922B",                            # tangerine
-    "1st script reviewed, awaiting final": "#74C0FC",               # bright sky blue
-    "1st draft in progress": "#63E6BE",                             # fresh mint
-    "Final Draft in progress": "#A9E34B",                           # lime green
-    "Final script approved, video in progress": "#748FFC",          # periwinkle
-    "Final Review": "#F06595",                                      # vibrant pink
-    "Approved for posting": "#51CF66",                              # vivid green
+    "Awaiting brief": "#FCC419",          # bright gold
+    "Script in progress": "#FF922B",      # tangerine
+    "Script feedback": "#74C0FC",         # sky blue
+    "Video in progress": "#A9E34B",       # lime green
+    "Video feedback": "#F06595",          # vibrant pink
+    "Approved for posting": "#51CF66",    # vivid green
 }
 
 COLLAB_STAGE_ORDER = [
     "Awaiting brief",
-    "1st script in progress",
-    "1st script reviewed, awaiting final",
-    "1st draft in progress",
-    "Final Draft in progress",
-    "Final script approved, video in progress",
-    "Final Review",
+    "Script in progress",
+    "Script feedback",
+    "Video in progress",
+    "Video feedback",
     "Approved for posting",
 ]
 
