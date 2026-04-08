@@ -373,22 +373,23 @@ elif nav == "Pipeline":
         poc_counts = df_filtered["POC"].value_counts()
         poc_confirmed = df_filtered[df_filtered["Status"] == "Confirm"]["POC"].value_counts()
         poc_cols = st.columns(min(len(poc_counts), 6))
+        POC_COLOR_MAP = {"jenny": "#748FFC", "doris": "#FF922B", "jialin": "#F06595", "falida": "#63E6BE"}
         for i, (p, c) in enumerate(poc_counts.items()):
             if not p.strip():
                 continue
             confirmed_count = poc_confirmed.get(p, 0)
-            css = poc_class(p)
+            color = POC_COLOR_MAP.get(p.lower(), "#B197FC")
             poc_cols[i % len(poc_cols)].markdown(
-                f"""<div style="background:#FAFBFC; border-radius:10px; padding:14px 18px;
-                    box-shadow:0 1px 3px rgba(0,0,0,0.05); border-top: 3px solid currentColor;">
-                    <div class="{css}" style="font-weight:700; font-size:1em; margin-bottom:8px;">{p}</div>
-                    <div style="display:flex; gap:18px; font-size:0.88em; color:#4B5563;">
-                        <span>Contacted&nbsp;<b style="color:#1F2937">{c}</b></span>
-                        <span>Confirmed&nbsp;<b style="color:#1F2937">{confirmed_count}</b></span>
+                f"""<div style="background:#FAFBFC; border-radius:10px; padding:12px 16px;
+                    box-shadow:0 1px 3px rgba(0,0,0,0.05); border-left:4px solid {color};">
+                    <div style="font-weight:700; font-size:0.95em; color:{color}; margin-bottom:6px;">{p}</div>
+                    <div style="font-size:1.1em; color:#1F2937; font-weight:600; letter-spacing:0.01em;">
+                        📬 {c}&nbsp;&nbsp;✅ {confirmed_count}
                     </div>
                 </div>""",
                 unsafe_allow_html=True,
             )
+        st.caption("📬 Contacted&nbsp;&nbsp;&nbsp;✅ Confirmed")
 
         st.markdown("---")
 
