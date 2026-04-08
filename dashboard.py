@@ -33,20 +33,19 @@ st.set_page_config(page_title="Campaign Dashboard", page_icon="\U0001f4ca", layo
 
 # ─── Password gate ────────────────────────────────────────────────────────────
 
-def _check_password():
-    """Simple password gate. Password stored in st.secrets['app_password'].
-    Falls back to no-auth if secret is not configured (local dev)."""
-    import streamlit as st
+def _check_password() -> bool:
+    """Returns True if authenticated. st.stop() must be called by caller."""
 
-    # If no secret configured, skip auth (local dev)
-    try:
-        correct_pw = st.secrets["app_password"]
-    except Exception:
-        return True  # local dev: no password required
-
-    if st.session_state.get("_authenticated"):
+    # No secret configured → local dev, skip auth
+    app_pw = st.secrets.get("app_password", None)
+    if not app_pw:
         return True
 
+    # Already authenticated this session
+    if st.session_state.get("_pw_ok"):
+        return True
+
+    # Show login UI
     st.markdown("""
     <div style="max-width:380px; margin:80px auto; text-align:center;">
         <div style="font-size:2.5em; margin-bottom:8px;">📊</div>
@@ -57,16 +56,19 @@ def _check_password():
 
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        pw = st.text_input("Password", type="password", placeholder="Enter password...", label_visibility="collapsed")
-        if st.button("Continue →", use_container_width=True):
-            if pw == correct_pw:
-                st.session_state["_authenticated"] = True
+        pw = st.text_input("Password", type="password",
+                           placeholder="Enter password...", label_visibility="collapsed")
+        if st.button("Continue →", use_container_width=True, type="primary"):
+            if pw == app_pw:
+                st.session_state["_pw_ok"] = True
                 st.rerun()
             else:
                 st.error("Incorrect password.")
-    st.stop()
+    return False
 
-_check_password()
+# Gate: stop the entire script if not authenticated
+if not _check_password():
+    st.stop()
 
 # ─── Playful confetti-inspired CSS ───────────────────────────────────────────
 
