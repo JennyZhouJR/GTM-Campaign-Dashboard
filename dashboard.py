@@ -371,10 +371,17 @@ elif nav == "Pipeline":
         # POC Overview
         st.subheader("POC Overview")
         poc_counts = df_filtered["POC"].value_counts()
+        poc_confirmed = df_filtered[df_filtered["Status"] == "Confirm"]["POC"].value_counts()
         poc_cols = st.columns(min(len(poc_counts), 6))
         for i, (p, c) in enumerate(poc_counts.items()):
             if p.strip():
-                poc_cols[i % len(poc_cols)].metric(p, c)
+                confirmed_count = poc_confirmed.get(p, 0)
+                poc_cols[i % len(poc_cols)].metric(
+                    p,
+                    f"{c} contacted",
+                    delta=f"{confirmed_count} confirmed",
+                    delta_color="normal",
+                )
 
         st.markdown("---")
 
