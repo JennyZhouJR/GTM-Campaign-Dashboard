@@ -374,14 +374,21 @@ elif nav == "Pipeline":
         poc_confirmed = df_filtered[df_filtered["Status"] == "Confirm"]["POC"].value_counts()
         poc_cols = st.columns(min(len(poc_counts), 6))
         for i, (p, c) in enumerate(poc_counts.items()):
-            if p.strip():
-                confirmed_count = poc_confirmed.get(p, 0)
-                poc_cols[i % len(poc_cols)].metric(
-                    p,
-                    f"{c} contacted",
-                    delta=f"{confirmed_count} confirmed",
-                    delta_color="normal",
-                )
+            if not p.strip():
+                continue
+            confirmed_count = poc_confirmed.get(p, 0)
+            css = poc_class(p)
+            poc_cols[i % len(poc_cols)].markdown(
+                f"""<div style="background:#FAFBFC; border-radius:10px; padding:14px 18px;
+                    box-shadow:0 1px 3px rgba(0,0,0,0.05); border-top: 3px solid currentColor;">
+                    <div class="{css}" style="font-weight:700; font-size:1em; margin-bottom:8px;">{p}</div>
+                    <div style="display:flex; gap:18px; font-size:0.88em; color:#4B5563;">
+                        <span>Contacted&nbsp;<b style="color:#1F2937">{c}</b></span>
+                        <span>Confirmed&nbsp;<b style="color:#1F2937">{confirmed_count}</b></span>
+                    </div>
+                </div>""",
+                unsafe_allow_html=True,
+            )
 
         st.markdown("---")
 
