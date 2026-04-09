@@ -242,63 +242,43 @@ def header_to_col_index(header_name):
     return -1
 
 
-def _save_pending_edits(key_prefix):
-    """Process and save any pending edits from previous render cycle.
-    Must be called BEFORE st.data_editor to avoid losing edits on filter change."""
-    edit_key = f"{key_prefix}_editor"
-    save_key = f"{key_prefix}_pending"
-
-    # Check if there are pending edits stored from callback
-    pending = st.session_state.get(save_key)
-    if pending:
-        try:
-            batch_update_cells(st.session_state["ws"], pending)
-            st.toast(f"Saved {len(pending)} change(s)")
-        except Exception as e:
-            st.error(f"Save failed: {e}")
-        st.session_state[save_key] = None
-
-
-def _on_edit(key_prefix, df_view):
-    """Callback when data_editor changes — immediately capture edits with correct row mapping."""
-    edit_key = f"{key_prefix}_editor"
-    save_key = f"{key_prefix}_pending"
-    changes = st.session_state.get(edit_key, {})
-    edited_rows = changes.get("edited_rows", {})
-    if not edited_rows:
-        return
-    updates = []
-    for row_idx_str, row_changes in edited_rows.items():
-        try:
-            sheet_row = int(df_view.iloc[int(row_idx_str)]["_sheet_row"])
-        except (IndexError, KeyError):
-            continue
-        for col_name, new_value in row_changes.items():
-            col_idx = header_to_col_index(col_name)
-            if col_idx >= 0:
-                updates.append((sheet_row, col_idx + 1, str(new_value) if new_value is not None else ""))
-    if updates:
-        st.session_state[save_key] = updates
-
-
 def show_editable_table(df_view, display_cols, editable_cols, key_prefix):
     available = [c for c in display_cols if c in df_view.columns]
     if not available:
         return
 
-    # Save any pending edits from previous cycle FIRST
-    _save_pending_edits(key_prefix)
+    # Before rendering new editor, save any edits from the PREVIOUS render.
+    # We stored the previous df_view's _sheet_row mapping in session state.
+    prev_key = f"{key_prefix}_prev_rows"
+    edit_key = f"{key_prefix}_editor"
+    changes = st.session_state.get(edit_key, {})
+    edited_rows = changes.get("edited_rows", {})
+    prev_rows = st.session_state.get(prev_key, {})
+    if edited_rows and prev_rows:
+        updates = []
+        for row_idx_str, row_changes in edited_rows.items():
+            sheet_row = prev_rows.get(int(row_idx_str))
+            if sheet_row is None:
+                continue
+            for col_name, new_value in row_changes.items():
+                col_idx = header_to_col_index(col_name)
+                if col_idx >= 0:
+                    updates.append((sheet_row, col_idx + 1, str(new_value) if new_value is not None else ""))
+        if updates:
+            try:
+                batch_update_cells(st.session_state["ws"], updates)
+                st.toast(f"Saved {len(updates)} change(s)")
+            except Exception as e:
+                st.error(f"Save failed: {e}")
+
+    # Store current df_view's row index -> sheet_row mapping for next cycle
+    st.session_state[prev_key] = {i: int(row["_sheet_row"]) for i, (_, row) in enumerate(df_view.iterrows())}
 
     col_config = make_column_config(editable_cols)
     disabled = [c for c in available if c not in editable_cols]
-
-    # Store df_view reference for the callback
-    st.session_state[f"{key_prefix}_df_ref"] = df_view
-
     st.data_editor(
         df_view[available], column_config=col_config, disabled=disabled,
         use_container_width=True, num_rows="fixed", key=f"{key_prefix}_editor",
-        on_change=_on_edit, args=(key_prefix, df_view),
     )
 
 
