@@ -14,7 +14,7 @@ from dashboard_utils.gsheet_client import (
 )
 from dashboard_utils.data_model import (
     COL, HEADER_NAMES, STATUS_OPTIONS, COLLAB_STAGE_OPTIONS,
-    PAYMENT_PROGRESS_OPTIONS,
+    PAYMENT_PROGRESS_OPTIONS, CAMPAIGN_TAG_OPTIONS,
     PIPELINE_DISPLAY_COLS, CONTENT_DISPLAY_COLS,
     PAYMENT_PERF_DISPLAY_COLS, RETRO_DISPLAY_COLS,
     prepare_dataframe, filter_by_contact_date,
@@ -182,14 +182,17 @@ col1, col2 = st.sidebar.columns(2)
 start_date = col1.date_input("From", value=date(2026, 3, 24))
 end_date = col2.date_input("To", value=date(2026, 4, 7))
 
-all_statuses = sorted(set(s.strip() for s in df_all["Status"].unique() if s.strip()))
-selected_statuses = st.sidebar.multiselect("Status Filter", options=all_statuses, default=[])
-
+st.sidebar.markdown("---")
+st.sidebar.subheader("Campaign")
 if "Campaign Tag" in df_all.columns:
     all_tags = sorted(set(t.strip() for t in df_all["Campaign Tag"].unique() if t.strip()))
     selected_tag = st.sidebar.selectbox("Campaign Tag", ["(All)"] + all_tags) if all_tags else "(All)"
 else:
     selected_tag = "(All)"
+
+st.sidebar.markdown("---")
+all_statuses = sorted(set(s.strip() for s in df_all["Status"].unique() if s.strip()))
+selected_statuses = st.sidebar.multiselect("Status Filter", options=all_statuses, default=[])
 
 # ─── Data filtering ───────────────────────────────────────────────────────────
 # PRIMARY filter: Date of Contact (column A). All conditions derive from this set.
@@ -220,6 +223,8 @@ def make_column_config(editable_cols):
             config[col_name] = st.column_config.SelectboxColumn(col_name, options=COLLAB_STAGE_OPTIONS)
         elif col_type == "select_payment":
             config[col_name] = st.column_config.SelectboxColumn(col_name, options=PAYMENT_PROGRESS_OPTIONS)
+        elif col_type == "select_campaign":
+            config[col_name] = st.column_config.SelectboxColumn(col_name, options=CAMPAIGN_TAG_OPTIONS)
         elif col_type == "text":
             config[col_name] = st.column_config.TextColumn(col_name)
     config["Profile Link"] = st.column_config.LinkColumn("Profile Link")
@@ -437,6 +442,7 @@ elif nav == "Pipeline":
         show_editable_table(
             df_pipe, PIPELINE_DISPLAY_COLS,
             {"Status": "select_status", "Collaboration Stage": "select_collab",
+             "Campaign Tag": "select_campaign",
              "Confirm Date": "text", "POC": "text", "Notes": "text"},
             "pipeline",
         )

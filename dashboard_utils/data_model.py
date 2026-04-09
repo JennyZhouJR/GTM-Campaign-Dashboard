@@ -75,11 +75,16 @@ CONTRACT_OPTIONS = ["", "N/A", "Sent", "Signed"]
 
 PAYMENT_PROGRESS_OPTIONS = ["", "Pending", "Invoiced", "Paid"]
 
+CAMPAIGN_TAG_OPTIONS = [
+    "", "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+]
+
 # ─── Display columns per tab ─────────────────────────────────────────────────
 
 PIPELINE_DISPLAY_COLS = [
     "POC", "Name", "Profile Link", "Contact", "followers", "Country", "Type",
-    "ER", "Status", "Collaboration Stage", "Confirm Date", "Notes",
+    "ER", "Status", "Collaboration Stage", "Campaign Tag", "Confirm Date", "Notes",
 ]
 
 CONTENT_DISPLAY_COLS = [
