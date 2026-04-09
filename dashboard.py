@@ -281,19 +281,19 @@ def render_kanban(df_src, show_poc_prefix=True):
         return
     cols = st.columns(len(breakdown))
     for i, (stage, people) in enumerate(breakdown.items()):
-        color = COLLAB_STAGE_COLORS.get(stage, "#D5CFC7")
+        stage_color = COLLAB_STAGE_COLORS.get(stage, "#D5CFC7")
         with cols[i]:
             st.markdown(
-                f'<div class="stage-header" style="border-bottom-color: {color};">'
+                f'<div style="font-weight:700; font-size:0.85em; color:#374151; '
+                f'padding:8px 0 6px; margin-bottom:10px; text-transform:uppercase; '
+                f'letter-spacing:0.02em; border-bottom:3px solid {stage_color};">'
                 f'{stage} ({len(people)})</div>', unsafe_allow_html=True)
             for name, poc in people:
                 pc = poc_color(poc)
                 st.markdown(
-                    f'<div class="kanban-card" style="border-left-color: {color};">'
+                    f'<div class="kanban-card" style="border-left-color: {pc};">'
                     f'<div class="name">{name or "(no name)"}</div>'
                     f'<div class="poc" style="color:{pc}; font-weight:600;">'
-                    f'<span style="display:inline-block; width:8px; height:8px; '
-                    f'border-radius:50%; background:{pc}; margin-right:5px;"></span>'
                     f'{poc}</div></div>',
                     unsafe_allow_html=True)
 
