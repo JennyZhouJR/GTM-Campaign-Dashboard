@@ -160,6 +160,10 @@ def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
     df = df.copy()
+    # Strip whitespace from key text columns to prevent matching issues
+    for col in ["Status", "Collaboration Stage", "POC", "Name", "Country"]:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip()
     df["_confirm_date_parsed"] = df.get("Confirm Date", pd.Series(dtype=str)).apply(parse_date)
     # Also parse Date of Contact for broader funnel filtering
     doc_col = "Date of Contact" if "Date of Contact" in df.columns else (

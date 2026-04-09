@@ -261,9 +261,16 @@ def show_editable_table(df_view, display_cols, editable_cols, key_prefix):
                 st.error(f"Save failed: {e}")
 
 
+POC_HEX = {"jenny": "#748FFC", "doris": "#FF922B", "jialin": "#F06595", "falida": "#63E6BE"}
+
+
 def poc_class(poc):
     p = poc.strip().lower()
-    return f"poc-{p}" if p in ("jenny", "doris", "jialin", "falida") else "poc-other"
+    return f"poc-{p}" if p in POC_HEX else "poc-other"
+
+
+def poc_color(poc):
+    return POC_HEX.get(poc.strip().lower(), "#B197FC")
 
 
 def render_kanban(df_src, show_poc_prefix=True):
@@ -280,12 +287,14 @@ def render_kanban(df_src, show_poc_prefix=True):
                 f'<div class="stage-header" style="border-bottom-color: {color};">'
                 f'{stage} ({len(people)})</div>', unsafe_allow_html=True)
             for name, poc in people:
-                css = poc_class(poc)
-                poc_label = f"POC: {poc}" if show_poc_prefix else poc
+                pc = poc_color(poc)
                 st.markdown(
                     f'<div class="kanban-card" style="border-left-color: {color};">'
                     f'<div class="name">{name or "(no name)"}</div>'
-                    f'<div class="poc {css}">{poc_label}</div></div>',
+                    f'<div class="poc" style="color:{pc}; font-weight:600;">'
+                    f'<span style="display:inline-block; width:8px; height:8px; '
+                    f'border-radius:50%; background:{pc}; margin-right:5px;"></span>'
+                    f'{poc}</div></div>',
                     unsafe_allow_html=True)
 
 
