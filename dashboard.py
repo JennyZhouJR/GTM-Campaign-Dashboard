@@ -256,6 +256,7 @@ def show_editable_table(df_view, display_cols, editable_cols, key_prefix):
     prev_rows = st.session_state.get(prev_key, {})
     if edited_rows and prev_rows:
         updates = []
+        edit_details = []  # (sheet_row, col_name, new_value) for memory update
         for row_idx_str, row_changes in edited_rows.items():
             sheet_row = prev_rows.get(int(row_idx_str))
             if sheet_row is None:
@@ -263,10 +264,19 @@ def show_editable_table(df_view, display_cols, editable_cols, key_prefix):
             for col_name, new_value in row_changes.items():
                 col_idx = header_to_col_index(col_name)
                 if col_idx >= 0:
-                    updates.append((sheet_row, col_idx + 1, str(new_value) if new_value is not None else ""))
+                    val = str(new_value) if new_value is not None else ""
+                    updates.append((sheet_row, col_idx + 1, val))
+                    edit_details.append((sheet_row, col_name, val))
         if updates:
             try:
                 batch_update_cells(st.session_state["ws"], updates)
+                # Also update the in-memory DataFrame so changes show immediately
+                if "df" in st.session_state:
+                    df_mem = st.session_state["df"]
+                    for s_row, col_name, val in edit_details:
+                        mask = df_mem["_sheet_row"] == s_row
+                        if mask.any():
+                            df_mem.loc[mask, col_name] = val
                 st.toast(f"Saved {len(updates)} change(s)")
             except Exception as e:
                 st.error(f"Save failed: {e}")
