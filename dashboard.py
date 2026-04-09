@@ -186,8 +186,11 @@ end_date = col2.date_input("To", value=date(2026, 4, 7))
 st.sidebar.markdown("---")
 st.sidebar.subheader("Campaign")
 if "Campaign Tag" in df_all.columns:
-    all_tags = sorted(set(t.strip() for t in df_all["Campaign Tag"].unique() if t.strip()))
-    selected_tag = st.sidebar.selectbox("Campaign Tag", ["(All)"] + all_tags) if all_tags else "(All)"
+    # Show tags found in data + all standard month options as fallback
+    data_tags = set(t.strip() for t in df_all["Campaign Tag"].unique() if t.strip())
+    all_month_tags = [t for t in CAMPAIGN_TAG_OPTIONS if t]  # January-December
+    all_tags = sorted(set(list(data_tags) + all_month_tags), key=lambda t: CAMPAIGN_TAG_OPTIONS.index(t) if t in CAMPAIGN_TAG_OPTIONS else 99)
+    selected_tag = st.sidebar.selectbox("Campaign Tag", ["(All)"] + all_tags)
 else:
     selected_tag = "(All)"
 
@@ -239,32 +242,64 @@ def header_to_col_index(header_name):
     return -1
 
 
+def _save_pending_edits(key_prefix):
+    """Process and save any pending edits from previous render cycle.
+    Must be called BEFORE st.data_editor to avoid losing edits on filter change."""
+    edit_key = f"{key_prefix}_editor"
+    save_key = f"{key_prefix}_pending"
+
+    # Check if there are pending edits stored from callback
+    pending = st.session_state.get(save_key)
+    if pending:
+        try:
+            batch_update_cells(st.session_state["ws"], pending)
+            st.toast(f"Saved {len(pending)} change(s)")
+        except Exception as e:
+            st.error(f"Save failed: {e}")
+        st.session_state[save_key] = None
+
+
+def _on_edit(key_prefix, df_view):
+    """Callback when data_editor changes — immediately capture edits with correct row mapping."""
+    edit_key = f"{key_prefix}_editor"
+    save_key = f"{key_prefix}_pending"
+    changes = st.session_state.get(edit_key, {})
+    edited_rows = changes.get("edited_rows", {})
+    if not edited_rows:
+        return
+    updates = []
+    for row_idx_str, row_changes in edited_rows.items():
+        try:
+            sheet_row = int(df_view.iloc[int(row_idx_str)]["_sheet_row"])
+        except (IndexError, KeyError):
+            continue
+        for col_name, new_value in row_changes.items():
+            col_idx = header_to_col_index(col_name)
+            if col_idx >= 0:
+                updates.append((sheet_row, col_idx + 1, str(new_value) if new_value is not None else ""))
+    if updates:
+        st.session_state[save_key] = updates
+
+
 def show_editable_table(df_view, display_cols, editable_cols, key_prefix):
     available = [c for c in display_cols if c in df_view.columns]
     if not available:
         return
+
+    # Save any pending edits from previous cycle FIRST
+    _save_pending_edits(key_prefix)
+
     col_config = make_column_config(editable_cols)
     disabled = [c for c in available if c not in editable_cols]
+
+    # Store df_view reference for the callback
+    st.session_state[f"{key_prefix}_df_ref"] = df_view
+
     st.data_editor(
         df_view[available], column_config=col_config, disabled=disabled,
         use_container_width=True, num_rows="fixed", key=f"{key_prefix}_editor",
+        on_change=_on_edit, args=(key_prefix, df_view),
     )
-    changes = st.session_state.get(f"{key_prefix}_editor", {})
-    edited_rows = changes.get("edited_rows", {})
-    if edited_rows:
-        updates = []
-        for row_idx_str, row_changes in edited_rows.items():
-            sheet_row = int(df_view.iloc[int(row_idx_str)]["_sheet_row"])
-            for col_name, new_value in row_changes.items():
-                col_idx = header_to_col_index(col_name)
-                if col_idx >= 0:
-                    updates.append((sheet_row, col_idx + 1, str(new_value) if new_value is not None else ""))
-        if updates:
-            try:
-                batch_update_cells(st.session_state["ws"], updates)
-                st.toast(f"Saved {len(updates)} change(s)")
-            except Exception as e:
-                st.error(f"Save failed: {e}")
 
 
 POC_HEX = {"jenny": "#748FFC", "doris": "#FF922B", "jialin": "#F06595", "falida": "#63E6BE"}
@@ -428,15 +463,17 @@ elif nav == "Pipeline":
             df_pipe = df_pipe[df_pipe["Name"].str.contains(search, case=False, na=False)]
 
         # Column filters
-        fc1, fc2, fc3, fc4 = st.columns(4)
+        fc1, fc2, fc3, fc4, fc5 = st.columns(5)
         f_poc = fc1.multiselect("POC", sorted(set(df_pipe["POC"].dropna().unique()) - {""}), key="pf_poc")
         f_status = fc2.multiselect("Status", sorted(set(df_pipe["Status"].dropna().unique()) - {""}), key="pf_status")
         f_stage = fc3.multiselect("Stage", sorted(set(df_pipe["Collaboration Stage"].dropna().unique()) - {""}), key="pf_stage")
-        f_country = fc4.multiselect("Country", sorted(set(df_pipe["Country"].dropna().unique()) - {""}), key="pf_country")
+        f_tag = fc4.multiselect("Campaign", sorted(set(df_pipe["Campaign Tag"].dropna().unique()) - {""}), key="pf_tag")
+        f_country = fc5.multiselect("Country", sorted(set(df_pipe["Country"].dropna().unique()) - {""}), key="pf_country")
 
         if f_poc: df_pipe = df_pipe[df_pipe["POC"].isin(f_poc)]
         if f_status: df_pipe = df_pipe[df_pipe["Status"].isin(f_status)]
         if f_stage: df_pipe = df_pipe[df_pipe["Collaboration Stage"].isin(f_stage)]
+        if f_tag: df_pipe = df_pipe[df_pipe["Campaign Tag"].isin(f_tag)]
         if f_country: df_pipe = df_pipe[df_pipe["Country"].isin(f_country)]
 
         st.caption(f"{len(df_pipe)} influencers")
