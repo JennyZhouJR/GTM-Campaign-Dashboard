@@ -359,38 +359,42 @@ if nav == "Overview":
     if df_by_contact.empty:
         st.info("No influencers found for the selected date range.")
     else:
+        # Use filtered data when Campaign Tag is active, otherwise full contact set
+        ov_confirmed = df_filtered[df_filtered["Status"] == "Confirm"]
+        ov_contacted = df_filtered
+
         k1, k2, k3, k4, k5 = st.columns(5)
-        k1.metric("Contacted", len(df_by_contact))
-        k2.metric("Confirmed", len(confirmed))
-        avg_er = confirmed["_er_num"].dropna().mean()
+        k1.metric("Contacted", len(ov_contacted))
+        k2.metric("Confirmed", len(ov_confirmed))
+        avg_er = ov_confirmed["_er_num"].dropna().mean()
         k3.metric("Avg ER%", f"{avg_er:.2f}%" if pd.notna(avg_er) else "N/A")
-        total_price = confirmed["_price_num"].dropna().sum()
+        total_price = ov_confirmed["_price_num"].dropna().sum()
         k4.metric("Total Cost", f"${total_price:,.0f}" if total_price > 0 else "N/A")
-        avg_fol = confirmed["_followers_num"].dropna().mean()
+        avg_fol = ov_confirmed["_followers_num"].dropna().mean()
         k5.metric("Avg Followers", f"{avg_fol:,.0f}" if pd.notna(avg_fol) else "N/A")
 
         st.markdown("---")
         c1, c2 = st.columns(2)
         with c1:
-            fig = status_distribution_pie(df_by_contact)
+            fig = status_distribution_pie(ov_contacted)
             if fig:
                 st.plotly_chart(fig, use_container_width=True, key="ov_status")
             st.caption("All people contacted in this period.")
         with c2:
-            fig = collab_stage_detail(confirmed)
+            fig = collab_stage_detail(ov_confirmed)
             if fig:
                 st.plotly_chart(fig, use_container_width=True, key="ov_collab")
 
         st.markdown("---")
         c3, c4 = st.columns(2)
         with c3:
-            fig = er_histogram(confirmed)
+            fig = er_histogram(ov_confirmed)
             if fig:
                 st.plotly_chart(fig, use_container_width=True, key="ov_er")
             st.caption("X axis = ER%, Y axis = number of influencers in that range. "
                        "Green dashed = median, red dotted = average (pulled up by outliers).")
         with c4:
-            fig = followers_vs_er_scatter(confirmed)
+            fig = followers_vs_er_scatter(ov_confirmed)
             if fig:
                 st.plotly_chart(fig, use_container_width=True, key="ov_fver")
             st.caption("Top-left = high ER with fewer followers (great value).")
