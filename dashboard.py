@@ -359,12 +359,11 @@ if nav == "Overview":
     if df_by_contact.empty:
         st.info("No influencers found for the selected date range.")
     else:
-        # Use filtered data when Campaign Tag is active, otherwise full contact set
+        # Confirmed follows Campaign Tag filter; Contacted is always the full date range
         ov_confirmed = df_filtered[df_filtered["Status"] == "Confirm"]
-        ov_contacted = df_filtered
 
         k1, k2, k3, k4, k5 = st.columns(5)
-        k1.metric("Contacted", len(ov_contacted))
+        k1.metric("Contacted", len(df_by_contact))
         k2.metric("Confirmed", len(ov_confirmed))
         avg_er = ov_confirmed["_er_num"].dropna().mean()
         k3.metric("Avg ER%", f"{avg_er:.2f}%" if pd.notna(avg_er) else "N/A")
@@ -376,7 +375,7 @@ if nav == "Overview":
         st.markdown("---")
         c1, c2 = st.columns(2)
         with c1:
-            fig = status_distribution_pie(ov_contacted)
+            fig = status_distribution_pie(df_by_contact)
             if fig:
                 st.plotly_chart(fig, use_container_width=True, key="ov_status")
             st.caption("All people contacted in this period.")
