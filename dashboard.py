@@ -486,6 +486,12 @@ elif nav == "Pipeline":
 
             if not df_unsent.empty:
                 with st.expander(f"📤 Send Outreach ({len(df_unsent)} people with no status & valid email)", expanded=False):
+                    # POC filter
+                    poc_options = sorted(set(df_unsent["POC"].dropna().unique()) - {""})
+                    send_poc_filter = st.multiselect("Filter by POC", poc_options, key="send_poc_filter")
+                    if send_poc_filter:
+                        df_unsent = df_unsent[df_unsent["POC"].isin(send_poc_filter)]
+
                     # Show candidates
                     send_display = df_unsent[["Name", "Contact", "POC"]].copy()
                     send_display.insert(0, "Send", True)
