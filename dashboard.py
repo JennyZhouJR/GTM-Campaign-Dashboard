@@ -7,7 +7,7 @@ Version: 2026-04-09
 
 import streamlit as st
 import pandas as pd
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from dashboard_utils.gsheet_client import (
     _get_worksheet, ensure_new_columns, load_dataframe,
@@ -499,7 +499,7 @@ elif nav == "Pipeline":
 
                     if st.button(f"📧 Send Outreach ({len(selected)} emails)", type="primary", disabled=len(selected) == 0):
                         from dashboard_utils.email_client import batch_send_outreach
-                        from datetime import datetime
+
 
                         # Get sender name from POC column of the connected user
                         sender_name = gmail_email.split("@")[0].capitalize()
@@ -570,7 +570,7 @@ elif nav == "Pipeline":
                 df_followable = df_contacted[df_contacted["Email Message-ID"].str.strip() != ""]
                 if not df_followable.empty:
                     with st.expander(f"🔄 Follow-Ups ({len(df_followable)} contacted, awaiting reply)", expanded=False):
-                        from datetime import datetime, timedelta
+
                         from dashboard_utils.email_client import check_reply, send_followup as send_fu
 
                         now = datetime.now()
