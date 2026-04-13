@@ -418,7 +418,7 @@ elif nav == "Pipeline":
 
         st.subheader("POC Overview")
         POC_COLOR_MAP = {"jenny": "#748FFC", "doris": "#FF922B", "jialin": "#F06595", "falida": "#63E6BE"}
-        poc_counts = df_filtered["POC"].value_counts()
+        poc_counts = df_by_contact["POC"].value_counts()
         poc_confirmed_counts = df_confirmed_filtered["POC"].value_counts()
         poc_list = [(p, c) for p, c in poc_counts.items() if p.strip()]
         poc_cols = st.columns(min(len(poc_list), 6)) if poc_list else []
