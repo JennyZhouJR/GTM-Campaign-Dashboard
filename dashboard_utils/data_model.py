@@ -38,6 +38,9 @@ COL = {
     "link_signups": 28,      # AC (new)
     "campaign_tag": 29,      # AD (new)
     "retro_notes": 30,       # AE (new)
+    "email_msg_id": 31,      # AF (email)
+    "last_email_sent": 32,   # AG (email)
+    "followup_count": 33,    # AH (email)
 }
 
 # Reverse: index -> column name
@@ -54,7 +57,7 @@ HEADER_NAMES = [
     "Payment Receiving Account", "Payment Progress", "Post Link",
     "Content Type", "Post Date", "Tracking Link", "@dropdown",
     "Source Hashtag", "24hr Views", "Link Signups", "Campaign Tag",
-    "Retro Notes",
+    "Retro Notes", "Email Message-ID", "Last Email Sent", "Follow-Up Count",
 ]
 
 # ─── Dropdown options ─────────────────────────────────────────────────────────

@@ -451,6 +451,189 @@ elif nav == "Pipeline":
 
         st.markdown("---")
 
+        # ── Email Outreach ───────────────────────────────────────────────
+        st.subheader("📧 Email Outreach")
+
+        # Gmail connection
+        if "gmail_connected" not in st.session_state:
+            st.session_state["gmail_connected"] = False
+
+        if not st.session_state["gmail_connected"]:
+            with st.expander("Connect Gmail to send emails", expanded=False):
+                gc1, gc2 = st.columns(2)
+                gmail_addr = gc1.text_input("Gmail address", placeholder="you@jobright.ai", key="gmail_addr")
+                gmail_pw = gc2.text_input("App Password", type="password", placeholder="xxxx xxxx xxxx xxxx", key="gmail_pw")
+                if st.button("🔗 Connect Gmail"):
+                    if gmail_addr and gmail_pw:
+                        from dashboard_utils.email_client import test_smtp_connection
+                        if test_smtp_connection(gmail_addr, gmail_pw):
+                            st.session_state["gmail_connected"] = True
+                            st.session_state["gmail_email"] = gmail_addr
+                            st.session_state["gmail_password"] = gmail_pw
+                            st.toast(f"Connected as {gmail_addr}")
+                            st.rerun()
+                        else:
+                            st.error("Connection failed. Check your email and App Password.")
+                    else:
+                        st.warning("Enter both email and App Password.")
+        else:
+            gmail_email = st.session_state["gmail_email"]
+            st.caption(f"✅ Connected as **{gmail_email}**")
+
+            # Send outreach section
+            df_unsent = df_filtered[df_filtered["Status"].str.strip() == ""]
+            df_unsent = df_unsent[df_unsent["Contact"].str.strip() != ""]
+
+            if not df_unsent.empty:
+                with st.expander(f"📤 Send Outreach ({len(df_unsent)} people with no status & valid email)", expanded=False):
+                    # Show candidates
+                    send_display = df_unsent[["Name", "Contact", "POC"]].copy()
+                    send_display.insert(0, "Send", True)
+                    edited_send = st.data_editor(
+                        send_display, use_container_width=True,
+                        hide_index=True, key="send_editor",
+                    )
+
+                    selected = edited_send[edited_send["Send"] == True]
+                    st.caption(f"{len(selected)} selected")
+
+                    if st.button(f"📧 Send Outreach ({len(selected)} emails)", type="primary", disabled=len(selected) == 0):
+                        from dashboard_utils.email_client import batch_send_outreach
+                        from datetime import datetime
+
+                        # Get sender name from POC column of the connected user
+                        sender_name = gmail_email.split("@")[0].capitalize()
+
+                        # Build recipients list
+                        recipients = []
+                        for idx, row in selected.iterrows():
+                            orig_row = df_unsent.loc[idx]
+                            recipients.append({
+                                "to_email": orig_row["Contact"].strip(),
+                                "name": orig_row["Name"].strip() or "there",
+                                "sheet_row": int(orig_row["_sheet_row"]),
+                            })
+
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+
+                        def update_progress(current, total, name, success):
+                            progress_bar.progress(current / total)
+                            icon = "✅" if success else "❌"
+                            status_text.caption(f"{icon} {name} ({current}/{total})")
+
+                        results = batch_send_outreach(
+                            gmail_email, st.session_state["gmail_password"],
+                            sender_name, recipients, update_progress,
+                        )
+
+                        # Write results to Sheet
+                        ws = st.session_state["ws"]
+                        updates = []
+                        now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+                        success_count = 0
+                        for r in results:
+                            if r["success"]:
+                                success_count += 1
+                                sr = r["sheet_row"]
+                                # Status → Contacted
+                                updates.append((sr, COL["status"] + 1, "Contacted"))
+                                # Email Message-ID
+                                updates.append((sr, COL["email_msg_id"] + 1, r["msg_id"]))
+                                # Last Email Sent
+                                updates.append((sr, COL["last_email_sent"] + 1, now_str))
+                                # Follow-Up Count = 0
+                                updates.append((sr, COL["followup_count"] + 1, "0"))
+
+                        if updates:
+                            batch_update_cells(ws, updates)
+                            # Update in-memory DataFrame
+                            if "df" in st.session_state:
+                                df_mem = st.session_state["df"]
+                                for r in results:
+                                    if r["success"]:
+                                        mask = df_mem["_sheet_row"] == r["sheet_row"]
+                                        if mask.any():
+                                            df_mem.loc[mask, "Status"] = "Contacted"
+                                            df_mem.loc[mask, "Email Message-ID"] = r["msg_id"]
+                                            df_mem.loc[mask, "Last Email Sent"] = now_str
+                                            df_mem.loc[mask, "Follow-Up Count"] = "0"
+
+                        failed_count = len(results) - success_count
+                        st.success(f"Done! ✅ Sent {success_count} / ❌ Failed {failed_count}")
+            else:
+                st.info("No unsent contacts (all have a Status or no email).")
+
+            # Follow-up section
+            df_contacted = df_filtered[df_filtered["Status"] == "Contacted"].copy()
+            if "Email Message-ID" in df_contacted.columns and "Last Email Sent" in df_contacted.columns:
+                df_followable = df_contacted[df_contacted["Email Message-ID"].str.strip() != ""]
+                if not df_followable.empty:
+                    with st.expander(f"🔄 Follow-Ups ({len(df_followable)} contacted, awaiting reply)", expanded=False):
+                        from datetime import datetime, timedelta
+                        from dashboard_utils.email_client import check_reply, send_followup as send_fu
+
+                        now = datetime.now()
+                        fu_candidates = []
+                        for _, row in df_followable.iterrows():
+                            try:
+                                last_sent = datetime.strptime(row["Last Email Sent"].strip(), "%Y-%m-%d %H:%M")
+                            except (ValueError, AttributeError):
+                                continue
+                            fu_count = int(row.get("Follow-Up Count", "0") or "0")
+                            days_since = (now - last_sent).days
+
+                            if fu_count == 0 and days_since >= 2:
+                                fu_candidates.append({"row": row, "followup_num": 1, "days": days_since})
+                            elif fu_count == 1 and days_since >= 1:
+                                fu_candidates.append({"row": row, "followup_num": 2, "days": days_since})
+
+                        if fu_candidates:
+                            st.write(f"**{len(fu_candidates)}** people need follow-up:")
+                            for c in fu_candidates:
+                                r = c["row"]
+                                st.write(f"- **{r['Name']}** → Follow-Up #{c['followup_num']} ({c['days']} days since last email)")
+
+                            if st.button(f"📧 Send {len(fu_candidates)} Follow-Ups", type="primary"):
+                                ws = st.session_state["ws"]
+                                sent = 0
+                                skipped = 0
+                                for c in fu_candidates:
+                                    r = c["row"]
+                                    msg_id = r["Email Message-ID"]
+
+                                    # Check if they already replied
+                                    replied = check_reply(gmail_email, st.session_state["gmail_password"], msg_id)
+                                    if replied:
+                                        skipped += 1
+                                        continue
+
+                                    try:
+                                        sender_name = gmail_email.split("@")[0].capitalize()
+                                        send_fu(
+                                            gmail_email, st.session_state["gmail_password"],
+                                            r["Contact"].strip(),
+                                            r["Name"].strip() or "there",
+                                            sender_name, msg_id, c["followup_num"],
+                                        )
+                                        sr = int(r["_sheet_row"])
+                                        now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+                                        batch_update_cells(ws, [
+                                            (sr, COL["last_email_sent"] + 1, now_str),
+                                            (sr, COL["followup_count"] + 1, str(c["followup_num"])),
+                                        ])
+                                        sent += 1
+                                    except Exception as e:
+                                        st.error(f"Failed to send to {r['Name']}: {e}")
+
+                                st.success(f"Follow-ups done! ✅ Sent {sent} / ⏭️ Skipped {skipped} (already replied)")
+                        else:
+                            st.info("No follow-ups needed right now.")
+                else:
+                    st.info("No emails tracked yet. Send outreach first.")
+
+        st.markdown("---")
+
         # Filters + table
         st.subheader("Full Table")
         search = st.text_input("Search by name", key="pipe_search")
