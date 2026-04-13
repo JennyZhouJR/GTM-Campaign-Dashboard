@@ -1,0 +1,26 @@
+name: Auto Follow-Up Emails
+
+on:
+  schedule:
+    # Run daily at 9am EST (2pm UTC)
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+
+jobs:
+  followup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install gspread oauth2client pandas
+      - name: Run auto follow-up
+        env:
+          GSHEET_CREDENTIALS: ${{ secrets.GSHEET_CREDENTIALS }}
+          GMAIL_JENNY_PASSWORD: ${{ secrets.GMAIL_JENNY_PASSWORD }}
+          GMAIL_DORIS_PASSWORD: ${{ secrets.GMAIL_DORIS_PASSWORD }}
+          GMAIL_JIALIN_PASSWORD: ${{ secrets.GMAIL_JIALIN_PASSWORD }}
+        run: python auto_followup.py
