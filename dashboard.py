@@ -418,36 +418,24 @@ elif nav == "Pipeline":
 
         st.subheader("POC Overview")
         POC_COLOR_MAP = {"jenny": "#748FFC", "doris": "#FF922B", "jialin": "#F06595", "falida": "#63E6BE"}
-
-        if campaign_mode:
-            # Campaign mode: only show confirmed per POC
-            poc_confirmed = df_confirmed_filtered["POC"].value_counts()
-            poc_list = [(p, c) for p, c in poc_confirmed.items() if p.strip()]
-        else:
-            # All mode: show contacted + confirmed per POC
-            poc_list = [(p, c) for p, c in df_filtered["POC"].value_counts().items() if p.strip()]
-
+        poc_counts = df_filtered["POC"].value_counts()
         poc_confirmed_counts = df_confirmed_filtered["POC"].value_counts()
+        poc_list = [(p, c) for p, c in poc_counts.items() if p.strip()]
         poc_cols = st.columns(min(len(poc_list), 6)) if poc_list else []
         for i, (p, c) in enumerate(poc_list):
             color = POC_COLOR_MAP.get(p.lower(), "#B197FC")
-            if campaign_mode:
-                display = f"✅ {c}"
-            else:
-                confirmed_count = poc_confirmed_counts.get(p, 0)
-                display = f"📬 {c}&nbsp;&nbsp;✅ {confirmed_count}"
+            confirmed_count = poc_confirmed_counts.get(p, 0)
             poc_cols[i % len(poc_cols)].markdown(
                 f"""<div style="background:#FAFBFC; border-radius:10px; padding:12px 16px;
                     box-shadow:0 1px 3px rgba(0,0,0,0.05); border-left:4px solid {color};">
                     <div style="font-weight:700; font-size:0.95em; color:{color}; margin-bottom:6px;">{p}</div>
                     <div style="font-size:1.1em; color:#1F2937; font-weight:600; letter-spacing:0.01em;">
-                        {display}
+                        📬 {c}&nbsp;&nbsp;✅ {confirmed_count}
                     </div>
                 </div>""",
                 unsafe_allow_html=True,
             )
-        if not campaign_mode:
-            st.caption("📬 Contacted&nbsp;&nbsp;&nbsp;✅ Confirmed")
+        st.caption("📬 Contacted&nbsp;&nbsp;&nbsp;✅ Confirmed")
 
         st.markdown("---")
 
