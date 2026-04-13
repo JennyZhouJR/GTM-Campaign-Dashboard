@@ -11,7 +11,7 @@ import time
 
 from dashboard_utils.email_templates import (
     OUTREACH_SUBJECT, OUTREACH_BODY, FOLLOWUP_1_BODY, FOLLOWUP_2_BODY,
-    format_email,
+    format_email, get_subject_for_poc,
 )
 
 
@@ -44,7 +44,7 @@ def send_outreach(
 ) -> str:
     """Send initial outreach email. Returns the Message-ID."""
     body = format_email(OUTREACH_BODY, name=recipient_name, sender_name=sender_name)
-    subject = OUTREACH_SUBJECT
+    subject = get_subject_for_poc(sender_name)
 
     msg = MIMEMultipart()
     msg["From"] = f"{sender_name} <{sender_email}>"
@@ -77,7 +77,7 @@ def send_followup(
     else:
         body = format_email(FOLLOWUP_2_BODY, name=recipient_name, sender_name=sender_name)
 
-    subject = f"Re: {OUTREACH_SUBJECT}"
+    subject = f"Re: {get_subject_for_poc(sender_name)}"
 
     msg = MIMEMultipart()
     msg["From"] = f"{sender_name} <{sender_email}>"

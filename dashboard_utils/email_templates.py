@@ -2,6 +2,16 @@
 
 OUTREACH_SUBJECT = "Paid Collaboration with Jobright.ai"
 
+# Per-POC subject line overrides (default is OUTREACH_SUBJECT)
+POC_SUBJECT_OVERRIDES = {
+    "Jialin": "\U0001f4cc Paid Collaboration with Jobright.ai",
+}
+
+
+def get_subject_for_poc(poc_name: str) -> str:
+    """Return the outreach subject line for a given POC."""
+    return POC_SUBJECT_OVERRIDES.get(poc_name, OUTREACH_SUBJECT)
+
 OUTREACH_BODY = """\
 Hi {name},
 
