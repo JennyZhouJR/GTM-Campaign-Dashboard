@@ -2,7 +2,7 @@
 """
 Campaign Dashboard — Influencer Sourcing Workflow
 Run: streamlit run dashboard.py
-Version: 2026-04-09
+Version: 2026-04-13
 """
 
 import streamlit as st
