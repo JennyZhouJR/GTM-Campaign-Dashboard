@@ -17,13 +17,14 @@ from dashboard_utils.data_model import (
     COL, HEADER_NAMES, STATUS_OPTIONS, COLLAB_STAGE_OPTIONS,
     PAYMENT_PROGRESS_OPTIONS, CAMPAIGN_TAG_OPTIONS, STAGE_DEADLINES,
     PIPELINE_DISPLAY_COLS, CONTENT_DISPLAY_COLS,
-    PAYMENT_PERF_DISPLAY_COLS, RETRO_DISPLAY_COLS,
+    PAYMENT_PERF_DISPLAY_COLS,
     prepare_dataframe, filter_by_contact_date,
     filter_by_status, parse_date, get_timeline_status,
 )
 from dashboard_utils.charts import (
     status_distribution_pie, collab_stage_detail, collab_stage_breakdown,
     er_histogram, followers_vs_er_scatter, cost_vs_views_scatter,
+    daily_outreach_chart,
     COLLAB_STAGE_COLORS, COLLAB_STAGE_ORDER,
     POC_COLORS,
 )
@@ -177,22 +178,33 @@ if st.sidebar.button("\U0001f504 Refresh Data", use_container_width=True):
 
 df_all = load_data()
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("Date of Contact")
-col1, col2 = st.sidebar.columns(2)
-start_date = col1.date_input("From", value=date(2026, 3, 24))
-end_date = col2.date_input("To", value=date(2026, 4, 7))
-
+# Campaign Tag first (primary selector)
 st.sidebar.markdown("---")
 st.sidebar.subheader("Campaign")
 if "Campaign Tag" in df_all.columns:
-    # Show tags found in data + all standard month options as fallback
     data_tags = set(t.strip() for t in df_all["Campaign Tag"].unique() if t.strip())
-    all_month_tags = [t for t in CAMPAIGN_TAG_OPTIONS if t]  # January-December
+    all_month_tags = [t for t in CAMPAIGN_TAG_OPTIONS if t]
     all_tags = sorted(set(list(data_tags) + all_month_tags), key=lambda t: CAMPAIGN_TAG_OPTIONS.index(t) if t in CAMPAIGN_TAG_OPTIONS else 99)
-    selected_tag = st.sidebar.selectbox("Campaign Tag", ["(All)"] + all_tags)
+    # Default to most used Campaign Tag in the data
+    if data_tags:
+        tag_counts = df_all["Campaign Tag"].value_counts()
+        tag_counts = tag_counts[tag_counts.index.str.strip() != ""]
+        default_tag = tag_counts.index[0] if not tag_counts.empty else "(All)"
+        default_idx = (["(All)"] + all_tags).index(default_tag) if default_tag in all_tags else 0
+    else:
+        default_idx = 0
+    selected_tag = st.sidebar.selectbox("Campaign Tag", ["(All)"] + all_tags, index=default_idx)
 else:
     selected_tag = "(All)"
+
+# Date range (dynamic defaults)
+st.sidebar.markdown("---")
+st.sidebar.subheader("Date of Contact")
+_today = date.today()
+_default_start = _today - timedelta(days=14)
+col1, col2 = st.sidebar.columns(2)
+start_date = col1.date_input("From", value=_default_start)
+end_date = col2.date_input("To", value=_today)
 
 st.sidebar.markdown("---")
 all_statuses = sorted(set(s.strip() for s in df_all["Status"].unique() if s.strip()))
@@ -351,7 +363,7 @@ st.caption(f"{start_date.strftime('%m/%d')} \u2013 {end_date.strftime('%m/%d')} 
 
 # ─── Navigation ──────────────────────────────────────────────────────────────
 
-NAV_OPTIONS = ["Overview", "Pipeline", "Content & Delivery", "Payment & Performance", "Retrospective"]
+NAV_OPTIONS = ["Overview", "Pipeline", "Content & Delivery", "Payment & Performance"]
 
 nav = st.pills(
     "nav", NAV_OPTIONS,
@@ -376,6 +388,60 @@ if nav == "Overview":
         # Confirmed follows Campaign Tag filter; Contacted is always the full date range
         ov_confirmed = df_filtered[df_filtered["Status"] == "Confirm"]
 
+        # ─── Today's Activity ────────────────────────────────────────────
+        try:
+            from zoneinfo import ZoneInfo
+            _today_local = datetime.now(ZoneInfo("America/New_York")).date()
+        except Exception:
+            _today_local = date.today()
+
+        today_contacts = df_all[df_all["_date_of_contact_parsed"] == _today_local]
+        today_by_poc = today_contacts["POC"].value_counts()
+        today_total = len(today_contacts)
+
+        overdue_list_ov, _, _ = get_timeline_status(df_filtered)
+        overdue_count = len(overdue_list_ov)
+
+        st.subheader("Today's Activity")
+        if today_total > 0:
+            poc_chips = ""
+            for poc_name, count in today_by_poc.items():
+                if not poc_name.strip():
+                    continue
+                pc = poc_color(poc_name)
+                poc_chips += (
+                    f'<span style="display:inline-flex; align-items:center; gap:5px; margin-right:20px; font-size:0.9em;">'
+                    f'<span style="color:{pc}; font-weight:700;">{poc_name}</span>'
+                    f'<span style="color:#1F2937; font-weight:600;">{count}</span>'
+                    f'</span>'
+                )
+            overdue_html = ""
+            if overdue_count > 0:
+                overdue_html = f'<span style="color:#DC2626; font-weight:600; margin-left:20px;">⚠️ {overdue_count} overdue</span>'
+            st.markdown(
+                f'<div style="display:flex; align-items:center; flex-wrap:wrap; padding:8px 0;">'
+                f'{poc_chips}'
+                f'<span style="color:#6B7280; font-size:0.85em;">{today_total} new contacts today</span>'
+                f'{overdue_html}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            overdue_html = f' &nbsp;·&nbsp; <span style="color:#DC2626; font-weight:600;">⚠️ {overdue_count} overdue</span>' if overdue_count > 0 else ""
+            st.markdown(
+                f'<div style="color:#9CA3AF; font-size:0.88em; padding:8px 0;">'
+                f'No outreach recorded today{overdue_html}</div>',
+                unsafe_allow_html=True,
+            )
+
+        # 7-day outreach chart
+        fig_daily = daily_outreach_chart(df_all)
+        if fig_daily:
+            st.plotly_chart(fig_daily, use_container_width=True, key="ov_daily")
+
+        st.markdown("---")
+
+        # ─── KPI Metrics ─────────────────────────────────────────────────
         k1, k2, k3, k4, k5 = st.columns(5)
         k1.metric("Contacted", len(df_by_contact))
         k2.metric("Confirmed", len(ov_confirmed))
@@ -434,15 +500,25 @@ elif nav == "Pipeline":
         POC_COLOR_MAP = {"jenny": "#748FFC", "doris": "#FF922B", "jialin": "#F06595", "falida": "#63E6BE"}
         poc_counts = df_by_contact["POC"].value_counts()
         poc_confirmed_counts = df_confirmed_filtered["POC"].value_counts()
+        # Today's outreach per POC
+        try:
+            from zoneinfo import ZoneInfo
+            _today_pipe = datetime.now(ZoneInfo("America/New_York")).date()
+        except Exception:
+            _today_pipe = date.today()
+        today_by_poc_pipe = df_all[df_all["_date_of_contact_parsed"] == _today_pipe]["POC"].value_counts()
+
         poc_list = [(p, c) for p, c in poc_counts.items() if p.strip()]
         poc_cols = st.columns(min(len(poc_list), 6)) if poc_list else []
         for i, (p, c) in enumerate(poc_list):
             color = POC_COLOR_MAP.get(p.lower(), "#B197FC")
             confirmed_count = poc_confirmed_counts.get(p, 0)
+            today_count = today_by_poc_pipe.get(p, 0)
+            today_label = f'<span style="color:#9CA3AF; font-size:0.8em; margin-left:6px;">today {today_count}</span>' if today_count > 0 else ''
             poc_cols[i % len(poc_cols)].markdown(
                 f"""<div style="background:#FAFBFC; border-radius:10px; padding:12px 16px;
                     box-shadow:0 1px 3px rgba(0,0,0,0.05); border-left:4px solid {color};">
-                    <div style="font-weight:700; font-size:0.95em; color:{color}; margin-bottom:6px;">{p}</div>
+                    <div style="font-weight:700; font-size:0.95em; color:{color}; margin-bottom:6px;">{p}{today_label}</div>
                     <div style="font-size:1.1em; color:#1F2937; font-weight:600; letter-spacing:0.01em;">
                         📬 {c}&nbsp;&nbsp;✅ {confirmed_count}
                     </div>
@@ -524,7 +600,24 @@ elif nav == "Pipeline":
         st.markdown("---")
 
         # ── Email Outreach ───────────────────────────────────────────────
-        st.subheader("📧 Email Outreach")
+        # Compute counts for section header
+        _unsent_count = len(df_filtered[(df_filtered["Status"].str.strip() == "") & (df_filtered["Contact"].str.strip() != "")])
+        _contacted_for_fu = df_filtered[df_filtered["Status"] == "Contacted"]
+        _fu_count = 0
+        if "Email Message-ID" in _contacted_for_fu.columns and "Last Email Sent" in _contacted_for_fu.columns:
+            _trackable = _contacted_for_fu[_contacted_for_fu["Email Message-ID"].str.strip() != ""]
+            _now = datetime.now()
+            for _, _r in _trackable.iterrows():
+                try:
+                    _ls = datetime.strptime(_r["Last Email Sent"].strip(), "%Y-%m-%d %H:%M")
+                    _fc = int(_r.get("Follow-Up Count", "0") or "0")
+                    _ds = (_now - _ls).days
+                    if (_fc == 0 and _ds >= 2) or (_fc == 1 and _ds >= 1):
+                        _fu_count += 1
+                except (ValueError, AttributeError):
+                    pass
+
+        st.subheader(f"📧 Email Outreach ({_unsent_count} unsent, {_fu_count} follow-ups needed)")
 
         # Gmail connection
         if "gmail_connected" not in st.session_state:
@@ -733,9 +826,16 @@ elif nav == "Pipeline":
         if f_tag: df_pipe = df_pipe[df_pipe["Campaign Tag"].isin(f_tag)]
         if f_country: df_pipe = df_pipe[df_pipe["Country"].isin(f_country)]
 
+        # Add Days in Stage display column
+        if "_days_in_stage" in df_pipe.columns:
+            df_pipe["Days in Stage"] = df_pipe["_days_in_stage"].apply(
+                lambda x: f"{int(x)}d" if pd.notna(x) else ""
+            )
+
         st.caption(f"{len(df_pipe)} influencers")
+        pipe_display = PIPELINE_DISPLAY_COLS + (["Days in Stage"] if "Days in Stage" in df_pipe.columns else [])
         show_editable_table(
-            df_pipe, PIPELINE_DISPLAY_COLS,
+            df_pipe, pipe_display,
             {"Status": "select_status", "Collaboration Stage": "select_collab",
              "Campaign Tag": "select_campaign",
              "Confirm Date": "text", "POC": "text", "Notes": "text"},
@@ -873,85 +973,28 @@ elif nav == "Payment & Performance":
         show_editable_table(
             df_pay, PAYMENT_PERF_DISPLAY_COLS,
             {"Payment Receiving Account": "text", "Payment Progress": "select_payment",
-             "24hr Views": "text", "Link Signups": "text"},
+             "24hr Views": "text", "Link Signups": "text", "Retro Notes": "text"},
             "payment",
         )
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Retrospective
-# ═══════════════════════════════════════════════════════════════════════════════
-
-elif nav == "Retrospective":
-    if df_by_contact.empty:
-        st.info("No data for retrospective.")
-    else:
-        st.subheader("Campaign Summary")
-        s1, s2, s3, s4 = st.columns(4)
-        s1.metric("Contacted", len(df_by_contact))
-        s2.metric("Confirmed", len(confirmed))
-        s3.metric("Rejected/Dropped", len(df_by_contact[df_by_contact["Status"].isin(["Reject", "Drop"])]))
-        avg_er = confirmed["_er_num"].dropna().mean()
-        s4.metric("Avg ER%", f"{avg_er:.2f}%" if pd.notna(avg_er) else "N/A")
-
-        s5, s6, s7, s8 = st.columns(4)
-        tc = confirmed["_price_num"].dropna().sum()
-        s5.metric("Total Cost", f"${tc:,.0f}" if tc > 0 else "N/A")
-        tv = confirmed["_views_24hr_num"].dropna().sum()
-        s6.metric("Total 24hr Views", f"{tv:,.0f}" if tv > 0 else "N/A")
-        ts = confirmed["_signups_num"].dropna().sum()
-        s7.metric("Total Signups", f"{ts:,.0f}" if ts > 0 else "N/A")
-        if tc > 0 and ts > 0:
-            s8.metric("Avg Cost/Signup", f"${tc / ts:.2f}")
-        else:
-            s8.metric("Avg Cost/Signup", "N/A")
-
-        # Top Performance
-        st.markdown("---")
-        st.subheader("Top Performance")
-        rp = confirmed[["Name", "POC", "_views_24hr_num", "_signups_num", "_price_num"]].copy()
-        rp.columns = ["Name", "POC", "24hr Views", "Signups", "Cost ($)"]
-        rp1, rp2 = st.columns(2)
-        with rp1:
-            st.markdown("**By 24hr Views**")
-            v = rp.dropna(subset=["24hr Views"]).sort_values("24hr Views", ascending=False)
-            if not v.empty:
-                st.dataframe(v[["Name", "POC", "24hr Views", "Cost ($)"]], use_container_width=True, hide_index=True)
-            else:
-                st.info("No data yet.")
-        with rp2:
-            st.markdown("**By Signups**")
-            s = rp.dropna(subset=["Signups"]).sort_values("Signups", ascending=False)
-            if not s.empty:
-                st.dataframe(s[["Name", "POC", "Signups", "Cost ($)"]], use_container_width=True, hide_index=True)
-            else:
-                st.info("No data yet.")
-
-        # Charts
+        # Performance Charts (merged from Retrospective)
         st.markdown("---")
         st.subheader("Performance Charts")
-        r1, r2 = st.columns(2)
-        with r1:
-            fig = cost_vs_views_scatter(confirmed)
+        pc1, pc2 = st.columns(2)
+        with pc1:
+            fig = cost_vs_views_scatter(df_pay)
             if fig:
-                st.plotly_chart(fig, use_container_width=True, key="retro_cost")
+                st.plotly_chart(fig, use_container_width=True, key="pay_cost_views")
             else:
                 st.info("Cost vs Views will appear after campaign data is entered.")
-        with r2:
-            fig = followers_vs_er_scatter(confirmed)
+        with pc2:
+            fig = followers_vs_er_scatter(df_pay)
             if fig:
-                st.plotly_chart(fig, use_container_width=True, key="retro_fver")
-
-        # Retro Notes
-        st.markdown("---")
-        st.subheader("Retro Notes")
-        show_editable_table(
-            df_by_contact, RETRO_DISPLAY_COLS, {"Retro Notes": "text"}, "retro",
-        )
+                st.plotly_chart(fig, use_container_width=True, key="pay_fver")
 
         # Export
         st.markdown("---")
-        csv = df_by_contact.drop(columns=[c for c in df_by_contact.columns if c.startswith("_")]).to_csv(index=False)
+        csv = df_pay.drop(columns=[c for c in df_pay.columns if c.startswith("_")]).to_csv(index=False)
         st.download_button("\U0001f4e5 Export Campaign Report (CSV)", data=csv,
                            file_name=f"campaign_{start_date}_{end_date}.csv", mime="text/csv",
                            use_container_width=True)

@@ -236,6 +236,41 @@ def followers_vs_er_scatter(df: pd.DataFrame):
     return fig
 
 
+# ─── Daily Outreach Trend ─────────────────────────────────────────────────────
+
+def daily_outreach_chart(df: pd.DataFrame, days: int = 7):
+    """Stacked bar chart of daily outreach count by POC over the last N days."""
+    from datetime import date as date_type, timedelta
+    today = date_type.today()
+    start = today - timedelta(days=days - 1)
+
+    dated = df[df["_date_of_contact_parsed"].notna()].copy()
+    dated["_doc_date"] = dated["_date_of_contact_parsed"]
+    dated = dated[(dated["_doc_date"] >= start) & (dated["_doc_date"] <= today)]
+
+    if dated.empty:
+        return None
+
+    grouped = dated.groupby(["_doc_date", "POC"]).size().reset_index(name="Count")
+    grouped["_doc_date"] = grouped["_doc_date"].astype(str)
+
+    fig = px.bar(
+        grouped, x="_doc_date", y="Count", color="POC",
+        color_discrete_map=POC_COLORS,
+        title=f"Daily Outreach (Last {days} Days)",
+        labels={"_doc_date": "", "Count": "People Contacted"},
+    )
+    fig.update_layout(
+        margin=dict(t=40, b=20, l=20, r=20), height=300,
+        font=dict(family="DM Sans, Inter, sans-serif"),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        legend_title="POC", barmode="stack",
+    )
+    fig.update_xaxes(gridcolor="#EDEDED")
+    fig.update_yaxes(gridcolor="#EDEDED")
+    return fig
+
+
 # ─── Cost vs Performance ──────────────────────────────────────────────────────
 
 def cost_vs_views_scatter(df: pd.DataFrame):

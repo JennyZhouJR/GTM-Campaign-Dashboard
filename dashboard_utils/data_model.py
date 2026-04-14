@@ -112,6 +112,7 @@ PAYMENT_PERF_DISPLAY_COLS = [
     "Payment Progress", "Post Link", "Post Date",
     "24hr Views", "Link Signups", "ER",
     "Recent Average Impressions（The Latest 10 Videos\n)",
+    "Retro Notes",
 ]
 
 RETRO_DISPLAY_COLS = [
@@ -205,6 +206,12 @@ def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df["_signups_num"] = df.get("Link Signups", pd.Series(dtype=str)).apply(cast_numeric)
     df["_post_date_parsed"] = df.get("Post Date", pd.Series(dtype=str)).apply(parse_date)
     df["_stage_start_parsed"] = df.get("Stage Start Date", pd.Series(dtype=str)).apply(parse_date)
+    # Days in current stage (business days)
+    from datetime import date as _date
+    _today = _date.today()
+    df["_days_in_stage"] = df["_stage_start_parsed"].apply(
+        lambda d: _business_days_between(d, _today) if d is not None else None
+    )
     return df
 
 
