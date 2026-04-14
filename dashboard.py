@@ -197,14 +197,12 @@ if "Campaign Tag" in df_all.columns:
 else:
     selected_tag = "(All)"
 
-# Date range (dynamic defaults)
+# Date range
 st.sidebar.markdown("---")
 st.sidebar.subheader("Date of Contact")
-_today = date.today()
-_default_start = _today - timedelta(days=14)
 col1, col2 = st.sidebar.columns(2)
-start_date = col1.date_input("From", value=_default_start)
-end_date = col2.date_input("To", value=_today)
+start_date = col1.date_input("From", value=date(2026, 3, 24))
+end_date = col2.date_input("To", value=date(2026, 4, 7))
 
 st.sidebar.markdown("---")
 all_statuses = sorted(set(s.strip() for s in df_all["Status"].unique() if s.strip()))
