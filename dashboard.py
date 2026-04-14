@@ -457,50 +457,63 @@ elif nav == "Pipeline":
         overdue_list, in_progress_list, completed_count = get_timeline_status(df_filtered)
         st.subheader("Production Timeline")
 
+        def _group_by_stage(items):
+            """Group list of (name, poc, stage, days, row) by stage."""
+            groups = {}
+            for name, poc, stage, days, row in items:
+                groups.setdefault(stage, []).append((name, poc, days))
+            return groups
+
         if overdue_list:
-            html = '<div style="background:#FEF2F2; border-radius:8px; padding:14px 18px; margin-bottom:12px; border-left:4px solid #EF4444;">'
-            html += '<div style="font-weight:700; font-size:0.9em; color:#DC2626; margin-bottom:8px;">⚠️ Overdue</div>'
-            for name, poc, stage, days, _ in overdue_list:
-                pc = poc_color(poc)
-                html += (
-                    f'<div style="display:flex; align-items:center; gap:8px; padding:4px 0; font-size:0.84em;">'
-                    f'<span style="width:8px; height:8px; border-radius:50%; background:{pc}; flex-shrink:0; display:inline-block;"></span>'
-                    f'<span style="color:#1F2937; font-weight:500;">{name}</span>'
-                    f'<span style="color:#9CA3AF;">—</span>'
-                    f'<span style="color:#6B7280;">{stage}</span>'
-                    f'<span style="color:#DC2626; font-weight:600;">overdue {days} day{"s" if days != 1 else ""}</span>'
-                    f'<span style="color:#9CA3AF; font-size:0.85em;">({poc})</span>'
-                    f'</div>'
-                )
+            overdue_groups = _group_by_stage(overdue_list)
+            html = '<div style="background:#FEF2F2; border-radius:8px; padding:12px 16px; margin-bottom:12px;">'
+            html += '<div style="font-weight:700; font-size:0.88em; color:#DC2626; margin-bottom:10px;">⚠️ Overdue</div>'
+            for stage, people in overdue_groups.items():
+                html += f'<div style="display:flex; align-items:baseline; gap:10px; padding:4px 0; font-size:0.83em;">'
+                html += f'<span style="color:#6B7280; min-width:140px; flex-shrink:0;">{stage}</span>'
+                html += '<div style="display:flex; flex-wrap:wrap; gap:4px 16px;">'
+                for name, poc, days in people:
+                    pc = poc_color(poc)
+                    html += (
+                        f'<span style="display:inline-flex; align-items:center; gap:4px;">'
+                        f'<span style="width:7px; height:7px; border-radius:50%; background:{pc}; display:inline-block;"></span>'
+                        f'<span style="color:#1F2937; font-weight:500;">{name}</span>'
+                        f'<span style="color:#DC2626; font-weight:600; font-size:0.9em;">{days}d</span>'
+                        f'</span>'
+                    )
+                html += '</div></div>'
             html += '</div>'
             st.markdown(html, unsafe_allow_html=True)
 
         if in_progress_list:
-            html = '<div style="background:#F9FAFB; border-radius:8px; padding:14px 18px; margin-bottom:12px; border-left:4px solid #748FFC;">'
-            html += '<div style="font-weight:700; font-size:0.9em; color:#374151; margin-bottom:8px;">⏳ In Progress</div>'
-            for name, poc, stage, days_left, _ in in_progress_list:
-                pc = poc_color(poc)
-                if days_left is not None:
-                    time_label = f'<span style="color:#059669; font-weight:600;">{days_left} day{"s" if days_left != 1 else ""} left</span>'
-                else:
-                    time_label = '<span style="color:#9CA3AF;">no deadline</span>'
-                html += (
-                    f'<div style="display:flex; align-items:center; gap:8px; padding:4px 0; font-size:0.84em;">'
-                    f'<span style="width:8px; height:8px; border-radius:50%; background:{pc}; flex-shrink:0; display:inline-block;"></span>'
-                    f'<span style="color:#1F2937; font-weight:500;">{name}</span>'
-                    f'<span style="color:#9CA3AF;">—</span>'
-                    f'<span style="color:#6B7280;">{stage}</span>'
-                    f'{time_label}'
-                    f'<span style="color:#9CA3AF; font-size:0.85em;">({poc})</span>'
-                    f'</div>'
-                )
+            ip_groups = _group_by_stage(in_progress_list)
+            html = '<div style="background:#F9FAFB; border-radius:8px; padding:12px 16px; margin-bottom:12px;">'
+            html += '<div style="font-weight:700; font-size:0.88em; color:#374151; margin-bottom:10px;">⏳ In Progress</div>'
+            for stage, people in ip_groups.items():
+                html += f'<div style="display:flex; align-items:baseline; gap:10px; padding:4px 0; font-size:0.83em;">'
+                html += f'<span style="color:#6B7280; min-width:140px; flex-shrink:0;">{stage}</span>'
+                html += '<div style="display:flex; flex-wrap:wrap; gap:4px 16px;">'
+                for name, poc, days_left in people:
+                    pc = poc_color(poc)
+                    if days_left is not None:
+                        dl = f'<span style="color:#059669; font-size:0.9em;">{days_left}d</span>'
+                    else:
+                        dl = ''
+                    html += (
+                        f'<span style="display:inline-flex; align-items:center; gap:4px;">'
+                        f'<span style="width:7px; height:7px; border-radius:50%; background:{pc}; display:inline-block;"></span>'
+                        f'<span style="color:#1F2937; font-weight:500;">{name}</span>'
+                        f'{dl}'
+                        f'</span>'
+                    )
+                html += '</div></div>'
             html += '</div>'
             st.markdown(html, unsafe_allow_html=True)
 
         if completed_count > 0:
             st.markdown(
-                f'<div style="font-size:0.84em; color:#059669; font-weight:600; padding:4px 0;">'
-                f'✅ Completed: {completed_count} at Approved for posting</div>',
+                f'<div style="font-size:0.83em; color:#059669; font-weight:600; padding:4px 0;">'
+                f'✅ {completed_count} at Approved for posting</div>',
                 unsafe_allow_html=True)
 
         if not overdue_list and not in_progress_list and completed_count == 0:
