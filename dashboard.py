@@ -457,56 +457,49 @@ elif nav == "Pipeline":
         overdue_list, in_progress_list, completed_count = get_timeline_status(df_filtered)
         st.subheader("Production Timeline")
 
-        def _group_by_stage(items):
-            """Group list of (name, poc, stage, days, row) by stage."""
+        def _group_by_poc(items):
+            """Group list of (name, poc, stage, days, row) by POC."""
             groups = {}
             for name, poc, stage, days, row in items:
-                groups.setdefault(stage, []).append((name, poc, days))
+                groups.setdefault(poc or "Unknown", []).append((name, stage, days))
             return groups
 
-        if overdue_list:
-            overdue_groups = _group_by_stage(overdue_list)
-            html = '<div style="background:#FEF2F2; border-radius:8px; padding:12px 16px; margin-bottom:12px;">'
-            html += '<div style="font-weight:700; font-size:0.88em; color:#DC2626; margin-bottom:10px;">⚠️ Overdue</div>'
-            for stage, people in overdue_groups.items():
-                html += f'<div style="display:flex; align-items:baseline; gap:10px; padding:4px 0; font-size:0.83em;">'
-                html += f'<span style="color:#6B7280; min-width:140px; flex-shrink:0;">{stage}</span>'
-                html += '<div style="display:flex; flex-wrap:wrap; gap:4px 16px;">'
-                for name, poc, days in people:
-                    pc = poc_color(poc)
+        def _render_poc_timeline(items, is_overdue=False):
+            poc_groups = _group_by_poc(items)
+            html = ""
+            for poc, people in poc_groups.items():
+                pc = poc_color(poc)
+                html += f'<div style="display:flex; align-items:baseline; gap:10px; padding:5px 0; font-size:0.83em;">'
+                html += f'<span style="color:{pc}; font-weight:700; min-width:60px; flex-shrink:0;">{poc}</span>'
+                html += '<div style="display:flex; flex-wrap:wrap; gap:4px 18px;">'
+                for name, stage, days in people:
+                    if is_overdue:
+                        day_label = f'<span style="color:#DC2626; font-weight:600; font-size:0.9em;">{days}d</span>'
+                    elif days is not None:
+                        day_label = f'<span style="color:#059669; font-size:0.9em;">{days}d</span>'
+                    else:
+                        day_label = ''
                     html += (
                         f'<span style="display:inline-flex; align-items:center; gap:4px;">'
-                        f'<span style="width:7px; height:7px; border-radius:50%; background:{pc}; display:inline-block;"></span>'
                         f'<span style="color:#1F2937; font-weight:500;">{name}</span>'
-                        f'<span style="color:#DC2626; font-weight:600; font-size:0.9em;">{days}d</span>'
+                        f'<span style="color:#9CA3AF; font-size:0.88em;">{stage}</span>'
+                        f'{day_label}'
                         f'</span>'
                     )
                 html += '</div></div>'
+            return html
+
+        if overdue_list:
+            html = '<div style="background:#FEF2F2; border-radius:8px; padding:12px 16px; margin-bottom:12px;">'
+            html += '<div style="font-weight:700; font-size:0.88em; color:#DC2626; margin-bottom:8px;">⚠️ Overdue</div>'
+            html += _render_poc_timeline(overdue_list, is_overdue=True)
             html += '</div>'
             st.markdown(html, unsafe_allow_html=True)
 
         if in_progress_list:
-            ip_groups = _group_by_stage(in_progress_list)
             html = '<div style="background:#F9FAFB; border-radius:8px; padding:12px 16px; margin-bottom:12px;">'
-            html += '<div style="font-weight:700; font-size:0.88em; color:#374151; margin-bottom:10px;">⏳ In Progress</div>'
-            for stage, people in ip_groups.items():
-                html += f'<div style="display:flex; align-items:baseline; gap:10px; padding:4px 0; font-size:0.83em;">'
-                html += f'<span style="color:#6B7280; min-width:140px; flex-shrink:0;">{stage}</span>'
-                html += '<div style="display:flex; flex-wrap:wrap; gap:4px 16px;">'
-                for name, poc, days_left in people:
-                    pc = poc_color(poc)
-                    if days_left is not None:
-                        dl = f'<span style="color:#059669; font-size:0.9em;">{days_left}d</span>'
-                    else:
-                        dl = ''
-                    html += (
-                        f'<span style="display:inline-flex; align-items:center; gap:4px;">'
-                        f'<span style="width:7px; height:7px; border-radius:50%; background:{pc}; display:inline-block;"></span>'
-                        f'<span style="color:#1F2937; font-weight:500;">{name}</span>'
-                        f'{dl}'
-                        f'</span>'
-                    )
-                html += '</div></div>'
+            html += '<div style="font-weight:700; font-size:0.88em; color:#374151; margin-bottom:8px;">⏳ In Progress</div>'
+            html += _render_poc_timeline(in_progress_list, is_overdue=False)
             html += '</div>'
             st.markdown(html, unsafe_allow_html=True)
 
