@@ -197,33 +197,45 @@ if "Campaign Tag" in df_all.columns:
 else:
     selected_tag = "(All)"
 
-# Date range
+# Date range (optional)
 st.sidebar.markdown("---")
-st.sidebar.subheader("Date of Contact")
-col1, col2 = st.sidebar.columns(2)
-start_date = col1.date_input("From", value=date(2026, 3, 24))
-end_date = col2.date_input("To", value=date(2026, 4, 7))
+use_date_filter = st.sidebar.checkbox("Filter by date range", value=False)
+if use_date_filter:
+    _today = date.today()
+    _default_start = _today - timedelta(days=14)
+    col1, col2 = st.sidebar.columns(2)
+    start_date = col1.date_input("From", value=_default_start)
+    end_date = col2.date_input("To", value=_today)
 
 st.sidebar.markdown("---")
 all_statuses = sorted(set(s.strip() for s in df_all["Status"].unique() if s.strip()))
 selected_statuses = st.sidebar.multiselect("Status Filter", options=all_statuses, default=[])
 
 # ─── Data filtering ───────────────────────────────────────────────────────────
-# PRIMARY filter: Date of Contact (column A). All conditions derive from this set.
+# Campaign Tag = primary filter. Date range = optional secondary filter.
 
-df_by_contact = filter_by_contact_date(df_all, start_date, end_date)
-confirmed = df_by_contact[df_by_contact["Status"] == "Confirm"]
+df_filtered = df_all.copy()
 
-# Full filter for pipeline tabs (pipeline shows ALL contacted, not just confirmed)
-df_filtered = df_by_contact.copy()
-if selected_statuses:
-    df_filtered = filter_by_status(df_filtered, selected_statuses)
+# Campaign Tag filter
 if selected_tag != "(All)" and "Campaign Tag" in df_filtered.columns:
     df_filtered = df_filtered[df_filtered["Campaign Tag"] == selected_tag]
 
+# Date range filter (only when checkbox is checked)
+if use_date_filter:
+    df_filtered = filter_by_contact_date(df_filtered, start_date, end_date)
+    df_by_contact = filter_by_contact_date(df_all, start_date, end_date)
+else:
+    df_by_contact = df_all
+
+confirmed = df_filtered[df_filtered["Status"] == "Confirm"]
+
+# Status filter
+if selected_statuses:
+    df_filtered = filter_by_status(df_filtered, selected_statuses)
+
 st.sidebar.markdown("---")
 st.sidebar.metric("In view", len(df_filtered))
-st.sidebar.caption(f"Contacted: {len(df_by_contact)} | Confirmed: {len(confirmed)}")
+st.sidebar.caption(f"Confirmed: {len(confirmed)}")
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
