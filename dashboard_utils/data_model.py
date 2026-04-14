@@ -191,6 +191,7 @@ def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df["_price_num"] = df.get("Price（$)", pd.Series(dtype=str)).apply(cast_numeric)
     df["_views_24hr_num"] = df.get("24hr Views", pd.Series(dtype=str)).apply(cast_numeric)
     df["_signups_num"] = df.get("Link Signups", pd.Series(dtype=str)).apply(cast_numeric)
+    df["_post_date_parsed"] = df.get("Post Date", pd.Series(dtype=str)).apply(parse_date)
     return df
 
 

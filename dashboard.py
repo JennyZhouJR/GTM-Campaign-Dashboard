@@ -316,17 +316,26 @@ def render_kanban(df_src, show_poc_prefix=True):
         with cols[i]:
             st.markdown(
                 f'<div style="font-weight:700; font-size:0.85em; color:#374151; '
-                f'padding:8px 0 6px; margin-bottom:10px; text-transform:uppercase; '
+                f'padding:8px 0 6px; margin-bottom:8px; text-transform:uppercase; '
                 f'letter-spacing:0.02em; border-bottom:3px solid {stage_color};">'
                 f'{stage} ({len(people)})</div>', unsafe_allow_html=True)
+            chips = ""
             for name, poc in people:
                 pc = poc_color(poc)
-                st.markdown(
-                    f'<div class="kanban-card" style="border-left-color: {pc};">'
-                    f'<div class="name">{name or "(no name)"}</div>'
-                    f'<div class="poc" style="color:{pc}; font-weight:600;">'
-                    f'{poc}</div></div>',
-                    unsafe_allow_html=True)
+                chips += (
+                    f'<div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size:0.82em;">'
+                    f'<span style="width:8px; height:8px; border-radius:50%; background:{pc}; flex-shrink:0; display:inline-block;"></span>'
+                    f'<span style="color:#1F2937; font-weight:500;">{name or "(no name)"}</span>'
+                    f'</div>'
+                )
+            st.markdown(chips, unsafe_allow_html=True)
+    # POC color legend
+    legend_items = "".join(
+        f'<span style="display:inline-flex; align-items:center; gap:4px; margin-right:16px; font-size:0.78em; color:#6B7280;">'
+        f'<span style="width:8px; height:8px; border-radius:50%; background:{c}; display:inline-block;"></span>{p}</span>'
+        for p, c in POC_HEX.items()
+    )
+    st.markdown(f'<div style="margin-top:8px;">{legend_items}</div>', unsafe_allow_html=True)
 
 
 # ─── Title ────────────────────────────────────────────────────────────────────
@@ -687,6 +696,36 @@ elif nav == "Content & Delivery":
         if f_stage: df_content = df_content[df_content["Collaboration Stage"].isin(f_stage)]
         if f_poc: df_content = df_content[df_content["POC"].isin(f_poc)]
 
+        # Posting Schedule
+        df_with_date = df_content[df_content["_post_date_parsed"].notna()].copy()
+        if not df_with_date.empty:
+            with st.expander("📅 Posting Schedule", expanded=True):
+                grouped = {}
+                for _, row in df_with_date.iterrows():
+                    d = row["_post_date_parsed"]
+                    grouped.setdefault(d, []).append((row.get("Name", ""), row.get("POC", "")))
+                sorted_dates = sorted(grouped.keys())
+                date_cols = st.columns(len(sorted_dates))
+                for i, d in enumerate(sorted_dates):
+                    with date_cols[i]:
+                        day_label = d.strftime("%m/%d (%a)")
+                        st.markdown(
+                            f'<div style="font-weight:700; font-size:0.85em; color:#374151; '
+                            f'padding:6px 0; margin-bottom:6px; border-bottom:2px solid #E5E7EB;">'
+                            f'{day_label} ({len(grouped[d])})</div>',
+                            unsafe_allow_html=True)
+                        chips = ""
+                        for name, poc in grouped[d]:
+                            pc = poc_color(poc)
+                            chips += (
+                                f'<div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size:0.82em;">'
+                                f'<span style="width:8px; height:8px; border-radius:50%; background:{pc}; flex-shrink:0; display:inline-block;"></span>'
+                                f'<span style="color:#1F2937; font-weight:500;">{name or "(no name)"}</span>'
+                                f'</div>'
+                            )
+                        st.markdown(chips, unsafe_allow_html=True)
+
+        st.markdown("---")
         show_editable_table(
             df_content, CONTENT_DISPLAY_COLS,
             {"Collaboration Stage": "select_collab", "Content Type": "text",
