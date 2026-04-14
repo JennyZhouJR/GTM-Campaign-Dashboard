@@ -406,7 +406,7 @@ if nav == "Overview":
         # ─── Today's Activity ────────────────────────────────────────────
         try:
             from zoneinfo import ZoneInfo
-            _today_local = datetime.now(ZoneInfo("America/New_York")).date()
+            _today_local = datetime.now(ZoneInfo("America/Los_Angeles")).date()
         except Exception:
             _today_local = date.today()
 
@@ -518,7 +518,7 @@ elif nav == "Pipeline":
         # Today's outreach per POC
         try:
             from zoneinfo import ZoneInfo
-            _today_pipe = datetime.now(ZoneInfo("America/New_York")).date()
+            _today_pipe = datetime.now(ZoneInfo("America/Los_Angeles")).date()
         except Exception:
             _today_pipe = date.today()
         today_by_poc_pipe = df_all[df_all["_date_of_contact_parsed"] == _today_pipe]["POC"].value_counts()

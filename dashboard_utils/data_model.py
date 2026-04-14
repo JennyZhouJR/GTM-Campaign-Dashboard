@@ -99,7 +99,7 @@ CAMPAIGN_TAG_OPTIONS = [
 
 PIPELINE_DISPLAY_COLS = [
     "POC", "Name", "Profile Link", "Contact", "followers", "Country", "Type",
-    "ER", "Status", "Collaboration Stage", "Campaign Tag", "Confirm Date", "Post Date", "Notes",
+    "Status", "Collaboration Stage", "Campaign Tag", "Post Date",
 ]
 
 CONTENT_DISPLAY_COLS = [
