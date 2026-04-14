@@ -368,8 +368,13 @@ def render_kanban(df_src, show_poc_prefix=True):
 # ─── Title ────────────────────────────────────────────────────────────────────
 
 st.title("\U0001f4ca Campaign Dashboard")
-st.caption(f"{start_date.strftime('%m/%d')} \u2013 {end_date.strftime('%m/%d')}  \u00b7  "
-           f"{len(df_by_contact)} contacted  \u00b7  {len(confirmed)} confirmed  \u00b7  {len(df_filtered)} in view")
+_subtitle_parts = []
+if use_date_filter:
+    _subtitle_parts.append(f"{start_date.strftime('%m/%d')} \u2013 {end_date.strftime('%m/%d')}")
+if selected_tag != "(All)":
+    _subtitle_parts.append(f"{selected_tag} Campaign")
+_subtitle_parts.append(f"{len(confirmed)} confirmed  \u00b7  {len(df_filtered)} in view")
+st.caption("  \u00b7  ".join(_subtitle_parts))
 
 # ─── Navigation ──────────────────────────────────────────────────────────────
 
