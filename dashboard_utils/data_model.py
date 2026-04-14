@@ -105,6 +105,7 @@ PIPELINE_DISPLAY_COLS = [
 CONTENT_DISPLAY_COLS = [
     "Name", "Profile Link", "Status", "Collaboration Stage",
     "Content Type", "Post Link", "Post Date", "Price（$)",
+    "24hr Views", "Link Signups",
 ]
 
 PAYMENT_PERF_DISPLAY_COLS = [

@@ -914,7 +914,8 @@ elif nav == "Content & Delivery":
         show_editable_table(
             df_content, CONTENT_DISPLAY_COLS,
             {"Collaboration Stage": "select_collab", "Content Type": "text",
-             "Post Link": "text", "Post Date": "text", "Price\uff08$)": "text"},
+             "Post Link": "text", "Post Date": "text", "Price\uff08$)": "text",
+             "24hr Views": "text", "Link Signups": "text"},
             "content",
         )
 
