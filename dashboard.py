@@ -660,8 +660,8 @@ elif nav == "Pipeline":
             gmail_email = st.session_state["gmail_email"]
             st.caption(f"✅ Connected as **{gmail_email}**")
 
-            # Send outreach section
-            df_unsent = df_filtered[df_filtered["Status"].str.strip() == ""]
+            # Send outreach section — uses df_all, not affected by Campaign Tag filter
+            df_unsent = df_all[df_all["Status"].str.strip() == ""]
             df_unsent = df_unsent[df_unsent["Contact"].str.strip() != ""]
 
             if not df_unsent.empty:
