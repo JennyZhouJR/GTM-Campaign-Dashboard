@@ -74,6 +74,7 @@ COLLAB_STAGE_OPTIONS = [
     "Video in progress",
     "Video feedback",
     "Approved for posting",
+    "Posted",
 ]
 
 CONTRACT_OPTIONS = ["", "N/A", "Sent", "Signed"]
@@ -227,7 +228,7 @@ def get_timeline_status(df: pd.DataFrame):
     Returns (overdue, in_progress, completed):
         overdue: [(name, poc, stage, overdue_days, sheet_row), ...]
         in_progress: [(name, poc, stage, days_left, sheet_row), ...]
-        completed: count of people at Approved for posting
+        completed: count of people at Approved for posting or Posted
     """
     from datetime import date as date_type
     today = date_type.today()
@@ -243,7 +244,7 @@ def get_timeline_status(df: pd.DataFrame):
         poc = row.get("POC", "").strip()
         start = row.get("_stage_start_parsed")
 
-        if stage == "Approved for posting":
+        if stage in ("Approved for posting", "Posted"):
             completed += 1
             continue
 

@@ -24,6 +24,7 @@ COLLAB_STAGE_COLORS = {
     "Video in progress": "#A9E34B",       # lime green
     "Video feedback": "#F06595",          # vibrant pink
     "Approved for posting": "#51CF66",    # vivid green
+    "Posted": "#22D3EE",                  # cyan
 }
 
 COLLAB_STAGE_ORDER = [
@@ -33,6 +34,7 @@ COLLAB_STAGE_ORDER = [
     "Video in progress",
     "Video feedback",
     "Approved for posting",
+    "Posted",
 ]
 
 POC_COLORS = {
