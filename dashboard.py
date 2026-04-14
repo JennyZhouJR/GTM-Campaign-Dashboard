@@ -696,7 +696,7 @@ elif nav == "Content & Delivery":
         if f_stage: df_content = df_content[df_content["Collaboration Stage"].isin(f_stage)]
         if f_poc: df_content = df_content[df_content["POC"].isin(f_poc)]
 
-        # Posting Schedule
+        # Posting Schedule — Notion style
         df_with_date = df_content[df_content["_post_date_parsed"].notna()].copy()
         if not df_with_date.empty:
             with st.expander("📅 Posting Schedule", expanded=True):
@@ -705,25 +705,32 @@ elif nav == "Content & Delivery":
                     d = row["_post_date_parsed"]
                     grouped.setdefault(d, []).append((row.get("Name", ""), row.get("POC", "")))
                 sorted_dates = sorted(grouped.keys())
-                date_cols = st.columns(len(sorted_dates))
-                for i, d in enumerate(sorted_dates):
-                    with date_cols[i]:
-                        day_label = d.strftime("%m/%d (%a)")
-                        st.markdown(
-                            f'<div style="font-weight:700; font-size:0.85em; color:#374151; '
-                            f'padding:6px 0; margin-bottom:6px; border-bottom:2px solid #E5E7EB;">'
-                            f'{day_label} ({len(grouped[d])})</div>',
-                            unsafe_allow_html=True)
-                        chips = ""
-                        for name, poc in grouped[d]:
-                            pc = poc_color(poc)
-                            chips += (
-                                f'<div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size:0.82em;">'
-                                f'<span style="width:8px; height:8px; border-radius:50%; background:{pc}; flex-shrink:0; display:inline-block;"></span>'
-                                f'<span style="color:#1F2937; font-weight:500;">{name or "(no name)"}</span>'
-                                f'</div>'
-                            )
-                        st.markdown(chips, unsafe_allow_html=True)
+
+                html = ""
+                for d in sorted_dates:
+                    people = grouped[d]
+                    day_label = d.strftime("%m/%d %a")
+                    # Date header row
+                    html += (
+                        f'<div style="display:flex; align-items:center; gap:8px; padding:10px 14px; '
+                        f'background:#F9FAFB; border-radius:6px; margin-top:12px;">'
+                        f'<span style="font-weight:700; font-size:0.88em; color:#1F2937;">{day_label}</span>'
+                        f'<span style="font-size:0.78em; color:#9CA3AF;">{len(people)} people</span>'
+                        f'</div>'
+                    )
+                    # People chips — horizontal wrap
+                    html += '<div style="display:flex; flex-wrap:wrap; gap:6px 20px; padding:10px 14px;">'
+                    for name, poc in people:
+                        pc = poc_color(poc)
+                        html += (
+                            f'<div style="display:flex; align-items:center; gap:6px; font-size:0.84em;">'
+                            f'<span style="width:7px; height:7px; border-radius:50%; background:{pc}; flex-shrink:0; display:inline-block;"></span>'
+                            f'<span style="color:#374151; font-weight:500;">{name or "(no name)"}</span>'
+                            f'</div>'
+                        )
+                    html += '</div>'
+
+                st.markdown(html, unsafe_allow_html=True)
 
         st.markdown("---")
         show_editable_table(
