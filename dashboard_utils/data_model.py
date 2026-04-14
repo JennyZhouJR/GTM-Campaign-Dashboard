@@ -41,6 +41,7 @@ COL = {
     "email_msg_id": 31,      # AF (email)
     "last_email_sent": 32,   # AG (email)
     "followup_count": 33,    # AH (email)
+    "stage_start_date": 34,  # AI (production timeline)
 }
 
 # Reverse: index -> column name
@@ -58,6 +59,7 @@ HEADER_NAMES = [
     "Content Type", "Post Date", "Tracking Link", "@dropdown",
     "Source Hashtag", "24hr Views", "Link Signups", "Campaign Tag",
     "Retro Notes", "Email Message-ID", "Last Email Sent", "Follow-Up Count",
+    "Stage Start Date",
 ]
 
 # ─── Dropdown options ─────────────────────────────────────────────────────────
@@ -78,6 +80,15 @@ CONTRACT_OPTIONS = ["", "N/A", "Sent", "Signed"]
 
 PAYMENT_PROGRESS_OPTIONS = ["", "Pending", "Invoiced", "Paid"]
 
+STAGE_DEADLINES = {
+    # Awaiting brief — no deadline (we send the brief)
+    "Script in progress": 3,       # 3 business days
+    "Script feedback": 1,          # 1 business day
+    "Video in progress": 5,        # 5 business days
+    "Video feedback": 3,           # 1d our feedback + 2d influencer final
+    # Approved for posting — terminal state, no deadline
+}
+
 CAMPAIGN_TAG_OPTIONS = [
     "", "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
@@ -87,7 +98,7 @@ CAMPAIGN_TAG_OPTIONS = [
 
 PIPELINE_DISPLAY_COLS = [
     "POC", "Name", "Profile Link", "Contact", "followers", "Country", "Type",
-    "ER", "Status", "Collaboration Stage", "Campaign Tag", "Confirm Date", "Notes",
+    "ER", "Status", "Collaboration Stage", "Campaign Tag", "Confirm Date", "Post Date", "Notes",
 ]
 
 CONTENT_DISPLAY_COLS = [
@@ -192,7 +203,73 @@ def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df["_views_24hr_num"] = df.get("24hr Views", pd.Series(dtype=str)).apply(cast_numeric)
     df["_signups_num"] = df.get("Link Signups", pd.Series(dtype=str)).apply(cast_numeric)
     df["_post_date_parsed"] = df.get("Post Date", pd.Series(dtype=str)).apply(parse_date)
+    df["_stage_start_parsed"] = df.get("Stage Start Date", pd.Series(dtype=str)).apply(parse_date)
     return df
+
+
+def _business_days_between(start_date, end_date):
+    """Count business days (Mon-Fri) between two dates, excluding start."""
+    if start_date is None or end_date is None:
+        return 0
+    count = 0
+    current = start_date
+    from datetime import timedelta
+    while current < end_date:
+        current += timedelta(days=1)
+        if current.weekday() < 5:  # Mon=0 .. Fri=4
+            count += 1
+    return count
+
+
+def get_timeline_status(df: pd.DataFrame):
+    """Compute overdue and in-progress lists for confirmed influencers.
+
+    Returns (overdue, in_progress, completed):
+        overdue: [(name, poc, stage, overdue_days, sheet_row), ...]
+        in_progress: [(name, poc, stage, days_left, sheet_row), ...]
+        completed: count of people at Approved for posting
+    """
+    from datetime import date as date_type
+    today = date_type.today()
+
+    confirmed = df[df["Status"] == "Confirm"].copy()
+    overdue = []
+    in_progress = []
+    completed = 0
+
+    for _, row in confirmed.iterrows():
+        stage = row.get("Collaboration Stage", "").strip()
+        name = row.get("Name", "").strip() or "(no name)"
+        poc = row.get("POC", "").strip()
+        start = row.get("_stage_start_parsed")
+
+        if stage == "Approved for posting":
+            completed += 1
+            continue
+
+        deadline_days = STAGE_DEADLINES.get(stage)
+        if deadline_days is None:
+            # Awaiting brief or unknown stage — show as in progress, no deadline
+            if stage:
+                in_progress.append((name, poc, stage, None, int(row.get("_sheet_row", 0))))
+            continue
+
+        if start is None:
+            # Has a tracked stage but no start date — show as in progress
+            in_progress.append((name, poc, stage, None, int(row.get("_sheet_row", 0))))
+            continue
+
+        elapsed = _business_days_between(start, today)
+        remaining = deadline_days - elapsed
+
+        if remaining < 0:
+            overdue.append((name, poc, stage, abs(remaining), int(row.get("_sheet_row", 0))))
+        else:
+            in_progress.append((name, poc, stage, remaining, int(row.get("_sheet_row", 0))))
+
+    overdue.sort(key=lambda x: -x[3])  # most overdue first
+    in_progress.sort(key=lambda x: (x[3] is None, x[3] if x[3] is not None else 999))  # most urgent first
+    return overdue, in_progress, completed
 
 
 def filter_by_confirm_date(df: pd.DataFrame, start_date, end_date) -> pd.DataFrame:

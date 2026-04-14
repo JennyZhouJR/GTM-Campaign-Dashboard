@@ -26,6 +26,7 @@ NEW_HEADERS = {
     32: "Email Message-ID",    # AF
     33: "Last Email Sent",     # AG
     34: "Follow-Up Count",     # AH
+    35: "Stage Start Date",    # AI
 }
 
 # Column letters for indices 0-30
@@ -82,7 +83,7 @@ def _retry(fn, retries=3):
 def ensure_new_columns(ws):
     """Add AB-AE headers if they don't exist yet."""
     row1 = ws.row_values(1)
-    if len(row1) >= 34:
+    if len(row1) >= 35:
         return  # already have all columns
     cells = []
     for col_idx, header in NEW_HEADERS.items():

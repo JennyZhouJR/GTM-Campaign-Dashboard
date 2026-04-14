@@ -15,11 +15,11 @@ from dashboard_utils.gsheet_client import (
 )
 from dashboard_utils.data_model import (
     COL, HEADER_NAMES, STATUS_OPTIONS, COLLAB_STAGE_OPTIONS,
-    PAYMENT_PROGRESS_OPTIONS, CAMPAIGN_TAG_OPTIONS,
+    PAYMENT_PROGRESS_OPTIONS, CAMPAIGN_TAG_OPTIONS, STAGE_DEADLINES,
     PIPELINE_DISPLAY_COLS, CONTENT_DISPLAY_COLS,
     PAYMENT_PERF_DISPLAY_COLS, RETRO_DISPLAY_COLS,
     prepare_dataframe, filter_by_contact_date,
-    filter_by_status, parse_date,
+    filter_by_status, parse_date, get_timeline_status,
 )
 from dashboard_utils.charts import (
     status_distribution_pie, collab_stage_detail, collab_stage_breakdown,
@@ -267,6 +267,11 @@ def show_editable_table(df_view, display_cols, editable_cols, key_prefix):
                     val = str(new_value) if new_value is not None else ""
                     updates.append((sheet_row, col_idx + 1, val))
                     edit_details.append((sheet_row, col_name, val))
+                    # Auto-record Stage Start Date when Collaboration Stage changes
+                    if col_name == "Collaboration Stage" and val.strip():
+                        today_str = date.today().strftime("%m/%d/%Y")
+                        updates.append((sheet_row, COL["stage_start_date"] + 1, today_str))
+                        edit_details.append((sheet_row, "Stage Start Date", today_str))
         if updates:
             try:
                 batch_update_cells(st.session_state["ws"], updates)
@@ -445,6 +450,61 @@ elif nav == "Pipeline":
                 unsafe_allow_html=True,
             )
         st.caption("📬 Contacted&nbsp;&nbsp;&nbsp;✅ Confirmed")
+
+        st.markdown("---")
+
+        # Production Timeline Status
+        overdue_list, in_progress_list, completed_count = get_timeline_status(df_filtered)
+        st.subheader("Production Timeline")
+
+        if overdue_list:
+            html = '<div style="background:#FEF2F2; border-radius:8px; padding:14px 18px; margin-bottom:12px; border-left:4px solid #EF4444;">'
+            html += '<div style="font-weight:700; font-size:0.9em; color:#DC2626; margin-bottom:8px;">⚠️ Overdue</div>'
+            for name, poc, stage, days, _ in overdue_list:
+                pc = poc_color(poc)
+                html += (
+                    f'<div style="display:flex; align-items:center; gap:8px; padding:4px 0; font-size:0.84em;">'
+                    f'<span style="width:8px; height:8px; border-radius:50%; background:{pc}; flex-shrink:0; display:inline-block;"></span>'
+                    f'<span style="color:#1F2937; font-weight:500;">{name}</span>'
+                    f'<span style="color:#9CA3AF;">—</span>'
+                    f'<span style="color:#6B7280;">{stage}</span>'
+                    f'<span style="color:#DC2626; font-weight:600;">overdue {days} day{"s" if days != 1 else ""}</span>'
+                    f'<span style="color:#9CA3AF; font-size:0.85em;">({poc})</span>'
+                    f'</div>'
+                )
+            html += '</div>'
+            st.markdown(html, unsafe_allow_html=True)
+
+        if in_progress_list:
+            html = '<div style="background:#F9FAFB; border-radius:8px; padding:14px 18px; margin-bottom:12px; border-left:4px solid #748FFC;">'
+            html += '<div style="font-weight:700; font-size:0.9em; color:#374151; margin-bottom:8px;">⏳ In Progress</div>'
+            for name, poc, stage, days_left, _ in in_progress_list:
+                pc = poc_color(poc)
+                if days_left is not None:
+                    time_label = f'<span style="color:#059669; font-weight:600;">{days_left} day{"s" if days_left != 1 else ""} left</span>'
+                else:
+                    time_label = '<span style="color:#9CA3AF;">no deadline</span>'
+                html += (
+                    f'<div style="display:flex; align-items:center; gap:8px; padding:4px 0; font-size:0.84em;">'
+                    f'<span style="width:8px; height:8px; border-radius:50%; background:{pc}; flex-shrink:0; display:inline-block;"></span>'
+                    f'<span style="color:#1F2937; font-weight:500;">{name}</span>'
+                    f'<span style="color:#9CA3AF;">—</span>'
+                    f'<span style="color:#6B7280;">{stage}</span>'
+                    f'{time_label}'
+                    f'<span style="color:#9CA3AF; font-size:0.85em;">({poc})</span>'
+                    f'</div>'
+                )
+            html += '</div>'
+            st.markdown(html, unsafe_allow_html=True)
+
+        if completed_count > 0:
+            st.markdown(
+                f'<div style="font-size:0.84em; color:#059669; font-weight:600; padding:4px 0;">'
+                f'✅ Completed: {completed_count} at Approved for posting</div>',
+                unsafe_allow_html=True)
+
+        if not overdue_list and not in_progress_list and completed_count == 0:
+            st.info("No production timeline data yet. Set Collaboration Stage to start tracking.")
 
         st.markdown("---")
 
