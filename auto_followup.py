@@ -109,7 +109,7 @@ def run_followups():
     errors = 0
 
     for _, row in contacted.iterrows():
-        name = row[name_col].strip() or "there"
+        name = (row[name_col].strip().split()[0] if row[name_col].strip() else "there")
         to_email = row[contact_col].strip()
         poc = row[poc_col].strip()
         msg_id = row[msg_id_col].strip()

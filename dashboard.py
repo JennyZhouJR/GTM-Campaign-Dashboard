@@ -696,7 +696,7 @@ elif nav == "Pipeline":
                             orig_row = df_unsent.loc[idx]
                             recipients.append({
                                 "to_email": orig_row["Contact"].strip(),
-                                "name": orig_row["Name"].strip() or "there",
+                                "name": (orig_row["Name"].strip().split()[0] if orig_row["Name"].strip() else "there"),
                                 "sheet_row": int(orig_row["_sheet_row"]),
                             })
 
@@ -799,7 +799,7 @@ elif nav == "Pipeline":
                                         send_fu(
                                             gmail_email, st.session_state["gmail_password"],
                                             r["Contact"].strip(),
-                                            r["Name"].strip() or "there",
+                                            (r["Name"].strip().split()[0] if r["Name"].strip() else "there"),
                                             sender_name, msg_id, c["followup_num"],
                                         )
                                         sr = int(r["_sheet_row"])
