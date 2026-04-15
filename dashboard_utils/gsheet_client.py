@@ -100,6 +100,9 @@ def load_dataframe(ws) -> pd.DataFrame:
         return pd.DataFrame()
 
     headers = all_values[0]
+    # Fix: if A1 header is empty, it should be "Date of Contact"
+    if not headers[0].strip():
+        headers[0] = "Date of Contact"
     # Pad rows that are shorter than the header row
     n_cols = max(len(headers), 34)  # at least 34 cols (A-AH)
     padded_headers = headers + [NEW_HEADERS.get(i + 1, f"Col_{i}") for i in range(len(headers), n_cols)]
