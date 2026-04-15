@@ -453,6 +453,12 @@ if nav == "Overview":
         fig_daily = daily_outreach_chart(df_all)
         if fig_daily:
             st.plotly_chart(fig_daily, use_container_width=True, key="ov_daily")
+        else:
+            st.markdown(
+                '<div style="color:#9CA3AF; font-size:0.85em; padding:4px 0;">'
+                'No outreach recorded in the last 7 days.</div>',
+                unsafe_allow_html=True,
+            )
 
         st.markdown("---")
 
