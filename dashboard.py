@@ -544,6 +544,45 @@ elif nav == "Pipeline":
 
         st.markdown("---")
 
+        # ── Missed Posts Alert ────────────────────────────────────────
+        try:
+            from zoneinfo import ZoneInfo
+            _tl_today = datetime.now(ZoneInfo("America/Los_Angeles")).date()
+        except Exception:
+            _tl_today = date.today()
+
+        _confirmed_with_pd = df_filtered[
+            (df_filtered["Status"] == "Confirm")
+            & (df_filtered["_post_date_parsed"].notna())
+        ].copy()
+        _missed_posts = _confirmed_with_pd[
+            (_confirmed_with_pd["_post_date_parsed"] <= _tl_today)
+            & (_confirmed_with_pd["Collaboration Stage"].str.strip() != "Posted")
+        ]
+        if not _missed_posts.empty:
+            _mp_html = (
+                '<div style="background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; '
+                'padding:14px 18px; margin-bottom:16px;">'
+                f'<div style="font-weight:700; font-size:0.92em; color:#DC2626; margin-bottom:8px;">'
+                f'⚠️ {len(_missed_posts)} Missed Post{"s" if len(_missed_posts) != 1 else ""}</div>'
+                '<div style="display:flex; flex-wrap:wrap; gap:4px 18px;">'
+            )
+            for _, _mr in _missed_posts.iterrows():
+                _mn = (_mr.get("Name", "") or "").strip() or "(no name)"
+                _mp = (_mr.get("POC", "") or "").strip()
+                _md = _mr["_post_date_parsed"]
+                _md_str = _md.strftime("%m/%d") if _md else ""
+                _mpc = poc_color(_mp)
+                _mp_html += (
+                    f'<span style="display:inline-flex; align-items:center; gap:4px; font-size:0.84em;">'
+                    f'<span style="width:7px; height:7px; border-radius:50%; background:{_mpc}; display:inline-block;"></span>'
+                    f'<span style="color:#DC2626; font-weight:600;">{_mn}</span>'
+                    f'<span style="color:#9CA3AF; font-size:0.85em;">({_md_str})</span>'
+                    f'</span>'
+                )
+            _mp_html += '</div></div>'
+            st.markdown(_mp_html, unsafe_allow_html=True)
+
         # Production Timeline Status
         overdue_list, in_progress_list, completed_count = get_timeline_status(df_filtered)
         st.subheader("Production Timeline")
@@ -877,35 +916,71 @@ elif nav == "Content & Delivery":
         # Posting Schedule — Notion style
         df_with_date = df_content[df_content["_post_date_parsed"].notna()].copy()
         if not df_with_date.empty:
+            try:
+                from zoneinfo import ZoneInfo
+                _sched_today = datetime.now(ZoneInfo("America/Los_Angeles")).date()
+            except Exception:
+                _sched_today = date.today()
+
             with st.expander("📅 Posting Schedule", expanded=True):
+                # Count missed posts for legend
+                _missed_total = 0
                 grouped = {}
                 for _, row in df_with_date.iterrows():
                     d = row["_post_date_parsed"]
-                    grouped.setdefault(d, []).append((row.get("Name", ""), row.get("POC", "")))
+                    stage = (row.get("Collaboration Stage", "") or "").strip()
+                    grouped.setdefault(d, []).append((row.get("Name", ""), row.get("POC", ""), stage))
+                    if d <= _sched_today and stage != "Posted":
+                        _missed_total += 1
                 sorted_dates = sorted(grouped.keys())
+
+                # Legend
+                if _missed_total > 0:
+                    st.markdown(
+                        f'<div style="font-size:0.8em; color:#DC2626; font-weight:600; padding:4px 0 8px;">'
+                        f'⚠️ {_missed_total} influencer{"s" if _missed_total != 1 else ""} missed their post date</div>',
+                        unsafe_allow_html=True,
+                    )
 
                 html = ""
                 for d in sorted_dates:
                     people = grouped[d]
-                    day_label = d.strftime("%m/%d %a")
+                    day_label = d.strftime("%m/%d/%Y %a")
+                    is_past = d <= _sched_today
+                    is_today = d == _sched_today
+                    # Count missed in this date
+                    missed_in_date = sum(1 for _, _, s in people if is_past and s != "Posted") if is_past else 0
                     # Date header row
+                    today_badge = '<span style="background:#3B82F6; color:#fff; font-size:0.75em; padding:1px 8px; border-radius:10px; margin-left:6px;">TODAY</span>' if is_today else ""
+                    missed_badge = f'<span style="color:#DC2626; font-size:0.78em; font-weight:600; margin-left:8px;">⚠️ {missed_in_date} missed</span>' if missed_in_date > 0 else ""
                     html += (
                         f'<div style="display:flex; align-items:center; gap:8px; padding:10px 14px; '
                         f'background:#F9FAFB; border-radius:6px; margin-top:12px;">'
                         f'<span style="font-weight:700; font-size:0.88em; color:#1F2937;">{day_label}</span>'
+                        f'{today_badge}'
                         f'<span style="font-size:0.78em; color:#9CA3AF;">{len(people)} people</span>'
+                        f'{missed_badge}'
                         f'</div>'
                     )
                     # People chips — horizontal wrap
                     html += '<div style="display:flex; flex-wrap:wrap; gap:6px 20px; padding:10px 14px;">'
-                    for name, poc in people:
+                    for name, poc, stage in people:
                         pc = poc_color(poc)
-                        html += (
-                            f'<div style="display:flex; align-items:center; gap:6px; font-size:0.84em;">'
-                            f'<span style="width:7px; height:7px; border-radius:50%; background:{pc}; flex-shrink:0; display:inline-block;"></span>'
-                            f'<span style="color:#374151; font-weight:500;">{name or "(no name)"}</span>'
-                            f'</div>'
-                        )
+                        # Missed: past date + not Posted
+                        if is_past and stage != "Posted":
+                            html += (
+                                f'<div style="display:flex; align-items:center; gap:6px; font-size:0.84em;">'
+                                f'<span style="color:#DC2626; font-size:0.85em;">⚠️</span>'
+                                f'<span style="color:#DC2626; font-weight:600;">{name or "(no name)"}</span>'
+                                f'</div>'
+                            )
+                        else:
+                            html += (
+                                f'<div style="display:flex; align-items:center; gap:6px; font-size:0.84em;">'
+                                f'<span style="width:7px; height:7px; border-radius:50%; background:{pc}; flex-shrink:0; display:inline-block;"></span>'
+                                f'<span style="color:#374151; font-weight:500;">{name or "(no name)"}</span>'
+                                f'</div>'
+                            )
                     html += '</div>'
 
                 st.markdown(html, unsafe_allow_html=True)
