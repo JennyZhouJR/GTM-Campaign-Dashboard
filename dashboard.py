@@ -297,11 +297,18 @@ def show_editable_table(df_view, display_cols, editable_cols, key_prefix):
                         today_str = date.today().strftime("%m/%d/%Y")
                         updates.append((sheet_row, COL["stage_start_date"] + 1, today_str))
                         edit_details.append((sheet_row, "Stage Start Date", today_str))
-                    # Auto-record Contract Signed Date when Contract Status → Signed
+                    # Auto-record Contract Signed Date + auto-start production when Contract Status → Signed
                     if col_name == "Contract Status" and val.strip() == "Signed":
                         today_str = date.today().strftime("%m/%d/%Y")
+                        # 1. Record contract signed date
                         updates.append((sheet_row, COL["contract_signed_date"] + 1, today_str))
                         edit_details.append((sheet_row, "Contract Signed Date", today_str))
+                        # 2. Auto-set Collaboration Stage → Script in progress
+                        updates.append((sheet_row, COL["collab_stage"] + 1, "Script in progress"))
+                        edit_details.append((sheet_row, "Collaboration Stage", "Script in progress"))
+                        # 3. Record Stage Start Date (3-day countdown starts now)
+                        updates.append((sheet_row, COL["stage_start_date"] + 1, today_str))
+                        edit_details.append((sheet_row, "Stage Start Date", today_str))
         if updates:
             try:
                 batch_update_cells(st.session_state["ws"], updates)
