@@ -32,7 +32,7 @@ COL = {
     "content_type": 22,      # W
     "post_date": 23,         # X
     "tracking_link": 24,     # Y
-    "dropdown": 25,          # Z (unused)
+    "contract_status": 25,   # Z (Contract Status)
     "source_hashtag": 26,    # AA
     "views_24hr": 27,        # AB (new)
     "link_signups": 28,      # AC (new)
@@ -42,6 +42,7 @@ COL = {
     "last_email_sent": 32,   # AG (email)
     "followup_count": 33,    # AH (email)
     "stage_start_date": 34,  # AI (production timeline)
+    "contract_signed_date": 35,  # AJ (contract signed date)
 }
 
 # Reverse: index -> column name
@@ -56,10 +57,10 @@ HEADER_NAMES = [
     "Recent Average Impressions（The Latest 10 Videos\n)",
     "Audience Geo", "ER", "Confirm Date", "Notes",
     "Payment Receiving Account", "Payment Progress", "Post Link",
-    "Content Type", "Post Date", "Tracking Link", "@dropdown",
+    "Content Type", "Post Date", "Tracking Link", "Contract Status",
     "Source Hashtag", "24hr Views", "Link Signups", "Campaign Tag",
     "Retro Notes", "Email Message-ID", "Last Email Sent", "Follow-Up Count",
-    "Stage Start Date",
+    "Stage Start Date", "Contract Signed Date",
 ]
 
 # ─── Dropdown options ─────────────────────────────────────────────────────────
@@ -71,21 +72,23 @@ COLLAB_STAGE_OPTIONS = [
     "Awaiting brief",
     "Script in progress",
     "Script feedback",
+    "Script V2",
     "Video in progress",
     "Video feedback",
     "Approved for posting",
     "Posted",
 ]
 
-CONTRACT_OPTIONS = ["", "N/A", "Sent", "Signed"]
+CONTRACT_OPTIONS = ["", "N/A", "Draft Sent", "Docusign Sent", "In Revision", "Signed"]
 
 PAYMENT_PROGRESS_OPTIONS = ["", "Pending", "Invoiced", "Paid"]
 
 STAGE_DEADLINES = {
     # Awaiting brief — no deadline (we send the brief)
-    "Script in progress": 3,       # 3 business days
-    "Script feedback": 1,          # 1 business day
-    "Video in progress": 5,        # 5 business days
+    "Script in progress": 3,       # 3 business days (Script V1)
+    "Script feedback": 1,          # 1 business day (our feedback)
+    "Script V2": 2,                # 2 business days (revised script)
+    "Video in progress": 5,        # 5 business days (Video V1)
     "Video feedback": 3,           # 1d our feedback + 2d influencer final
     # Approved for posting — terminal state, no deadline
 }
@@ -99,7 +102,7 @@ CAMPAIGN_TAG_OPTIONS = [
 
 PIPELINE_DISPLAY_COLS = [
     "POC", "Name", "Profile Link", "Contact", "followers", "Country", "Type",
-    "Status", "Collaboration Stage", "Campaign Tag", "Post Date",
+    "Status", "Contract Status", "Collaboration Stage", "Campaign Tag", "Post Date",
 ]
 
 CONTENT_DISPLAY_COLS = [

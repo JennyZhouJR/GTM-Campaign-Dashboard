@@ -15,7 +15,8 @@ from dashboard_utils.gsheet_client import (
 )
 from dashboard_utils.data_model import (
     COL, HEADER_NAMES, STATUS_OPTIONS, COLLAB_STAGE_OPTIONS,
-    PAYMENT_PROGRESS_OPTIONS, CAMPAIGN_TAG_OPTIONS, STAGE_DEADLINES,
+    CONTRACT_OPTIONS, PAYMENT_PROGRESS_OPTIONS, CAMPAIGN_TAG_OPTIONS,
+    STAGE_DEADLINES,
     PIPELINE_DISPLAY_COLS, CONTENT_DISPLAY_COLS,
     PAYMENT_PERF_DISPLAY_COLS,
     prepare_dataframe, filter_by_contact_date,
@@ -251,6 +252,8 @@ def make_column_config(editable_cols):
             config[col_name] = st.column_config.SelectboxColumn(col_name, options=PAYMENT_PROGRESS_OPTIONS)
         elif col_type == "select_campaign":
             config[col_name] = st.column_config.SelectboxColumn(col_name, options=CAMPAIGN_TAG_OPTIONS)
+        elif col_type == "select_contract":
+            config[col_name] = st.column_config.SelectboxColumn(col_name, options=CONTRACT_OPTIONS)
         elif col_type == "text":
             config[col_name] = st.column_config.TextColumn(col_name)
     config["Profile Link"] = st.column_config.LinkColumn("Profile Link")
@@ -294,6 +297,11 @@ def show_editable_table(df_view, display_cols, editable_cols, key_prefix):
                         today_str = date.today().strftime("%m/%d/%Y")
                         updates.append((sheet_row, COL["stage_start_date"] + 1, today_str))
                         edit_details.append((sheet_row, "Stage Start Date", today_str))
+                    # Auto-record Contract Signed Date when Contract Status → Signed
+                    if col_name == "Contract Status" and val.strip() == "Signed":
+                        today_str = date.today().strftime("%m/%d/%Y")
+                        updates.append((sheet_row, COL["contract_signed_date"] + 1, today_str))
+                        edit_details.append((sheet_row, "Contract Signed Date", today_str))
         if updates:
             try:
                 batch_update_cells(st.session_state["ws"], updates)
@@ -896,7 +904,8 @@ elif nav == "Pipeline":
         pipe_display = PIPELINE_DISPLAY_COLS + (["Days in Stage"] if "Days in Stage" in df_pipe.columns else [])
         show_editable_table(
             df_pipe, pipe_display,
-            {"Name": "text", "Status": "select_status", "Collaboration Stage": "select_collab",
+            {"Name": "text", "Status": "select_status", "Contract Status": "select_contract",
+             "Collaboration Stage": "select_collab",
              "Campaign Tag": "select_campaign",
              "Confirm Date": "text", "POC": "text", "Notes": "text"},
             "pipeline",

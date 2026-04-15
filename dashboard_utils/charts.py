@@ -21,6 +21,7 @@ COLLAB_STAGE_COLORS = {
     "Awaiting brief": "#FCC419",          # bright gold
     "Script in progress": "#FF922B",      # tangerine
     "Script feedback": "#74C0FC",         # sky blue
+    "Script V2": "#E599F7",              # light purple
     "Video in progress": "#A9E34B",       # lime green
     "Video feedback": "#F06595",          # vibrant pink
     "Approved for posting": "#51CF66",    # vivid green
@@ -31,6 +32,7 @@ COLLAB_STAGE_ORDER = [
     "Awaiting brief",
     "Script in progress",
     "Script feedback",
+    "Script V2",
     "Video in progress",
     "Video feedback",
     "Approved for posting",

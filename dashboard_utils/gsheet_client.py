@@ -19,6 +19,7 @@ GSHEET_URL = "https://docs.google.com/spreadsheets/d/1hvAJnBUFdQWyLRE2oAwRwB9Z_U
 
 # New columns to add after the existing 27 (AB-AE)
 NEW_HEADERS = {
+    26: "Contract Status",     # Z (was @dropdown)
     28: "24hr Views",          # AB
     29: "Link Signups",        # AC
     30: "Campaign Tag",        # AD
@@ -27,6 +28,7 @@ NEW_HEADERS = {
     33: "Last Email Sent",     # AG
     34: "Follow-Up Count",     # AH
     35: "Stage Start Date",    # AI
+    36: "Contract Signed Date",  # AJ
 }
 
 # Column letters for indices 0-30
@@ -83,7 +85,7 @@ def _retry(fn, retries=3):
 def ensure_new_columns(ws):
     """Add AB-AE headers if they don't exist yet."""
     row1 = ws.row_values(1)
-    if len(row1) >= 35:
+    if len(row1) >= 36:
         return  # already have all columns
     cells = []
     for col_idx, header in NEW_HEADERS.items():
@@ -103,7 +105,7 @@ def load_dataframe(ws) -> pd.DataFrame:
     # Hardcode A1 header — Sheet sometimes has it blank, do NOT change this
     headers[0] = "Date of Contact"
     # Pad rows that are shorter than the header row
-    n_cols = max(len(headers), 34)  # at least 34 cols (A-AH)
+    n_cols = max(len(headers), 36)  # at least 36 cols (A-AJ)
     padded_headers = headers + [NEW_HEADERS.get(i + 1, f"Col_{i}") for i in range(len(headers), n_cols)]
 
     rows = []
