@@ -1,5 +1,10 @@
 """Email templates for outreach and follow-ups."""
 
+# Google Apps Script web app URL for email open tracking.
+# Fill this in after deploying EmailTracker.gs as a web app.
+# Example: https://script.google.com/macros/s/XXXXXXXXX/exec
+TRACKING_PIXEL_URL = ""
+
 OUTREACH_SUBJECT = "Paid Collaboration with Jobright.ai"
 
 # Per-POC subject line overrides (default is OUTREACH_SUBJECT)

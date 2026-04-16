@@ -730,7 +730,18 @@ elif nav == "Pipeline":
                 except (ValueError, AttributeError):
                     pass
 
-        with st.expander(f"📧 Email Outreach ({_unsent_count} unsent, {_fu_count} follow-ups needed)", expanded=False):
+        # Compute open rate stats
+        _sent_tracked = df_filtered[df_filtered["Email Message-ID"].str.strip() != ""] if "Email Message-ID" in df_filtered.columns else pd.DataFrame()
+        _sent_count = len(_sent_tracked)
+        _opened_count = 0
+        if _sent_count > 0 and "Email Opened" in _sent_tracked.columns:
+            _opened_count = (_sent_tracked["Email Opened"].str.strip().str.lower() == "yes").sum()
+        _open_rate_str = ""
+        if _sent_count > 0:
+            _open_pct = (_opened_count / _sent_count * 100)
+            _open_rate_str = f", {_opened_count}/{_sent_count} opened ({_open_pct:.0f}%)"
+
+        with st.expander(f"📧 Email Outreach ({_unsent_count} unsent, {_fu_count} follow-ups needed{_open_rate_str})", expanded=False):
             # Gmail connection
             if "gmail_connected" not in st.session_state:
                 st.session_state["gmail_connected"] = False

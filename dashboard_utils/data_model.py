@@ -43,6 +43,8 @@ COL = {
     "followup_count": 33,    # AH (email)
     "stage_start_date": 34,  # AI (production timeline)
     "contract_signed_date": 35,  # AJ (contract signed date)
+    "email_opened": 36,      # AK (email opened tracking)
+    "open_count": 37,        # AL (email open count)
 }
 
 # Reverse: index -> column name
@@ -61,6 +63,7 @@ HEADER_NAMES = [
     "Source Hashtag", "24hr Views", "Link Signups", "Campaign Tag",
     "Retro Notes", "Email Message-ID", "Last Email Sent", "Follow-Up Count",
     "Stage Start Date", "Contract Signed Date",
+    "Email Opened", "Open Count",
 ]
 
 # ─── Dropdown options ─────────────────────────────────────────────────────────
@@ -103,7 +106,7 @@ CAMPAIGN_TAG_OPTIONS = [
 PIPELINE_DISPLAY_COLS = [
     "POC", "Name", "Profile Link", "Contact", "followers", "Country", "Type",
     "Status", "Contract Status", "Collaboration Stage", "Campaign Tag", "Post Date",
-    "Notes",
+    "Email Opened", "Open Count", "Notes",
 ]
 
 CONTENT_DISPLAY_COLS = [

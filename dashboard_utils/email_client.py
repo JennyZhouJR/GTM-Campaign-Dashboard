@@ -9,11 +9,33 @@ from email.utils import make_msgid, formatdate
 from datetime import datetime, timedelta
 import time
 
+from urllib.parse import quote
+
 from dashboard_utils.email_templates import (
     OUTREACH_SUBJECT, OUTREACH_BODY, FOLLOWUP_1_BODY, FOLLOWUP_2_BODY,
     PAYMENT_CONFIRM_SUBJECT, PAYMENT_CONFIRM_BODY,
+    TRACKING_PIXEL_URL,
     format_email, format_payment_email, get_subject_for_poc,
 )
+
+
+def _wrap_html(body_text: str, message_id: str) -> str:
+    """Wrap plain text body in HTML with tracking pixel at end."""
+    # Convert plain text to HTML (preserve line breaks, escape minimal)
+    html_body = body_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    html_body = html_body.replace("\n", "<br>\n")
+    # Strip message-ID brackets for use in URL
+    clean_id = message_id.strip("<>")
+    pixel = ""
+    if TRACKING_PIXEL_URL:
+        pixel_url = f"{TRACKING_PIXEL_URL}?id={quote(clean_id)}"
+        pixel = f'<img src="{pixel_url}" width="1" height="1" style="display:none" alt="">'
+    return (
+        f'<html><body style="font-family:Arial,sans-serif;font-size:14px;color:#222;">'
+        f'{html_body}'
+        f'{pixel}'
+        f'</body></html>'
+    )
 
 
 def test_smtp_connection(sender_email: str, app_password: str) -> bool:
@@ -47,14 +69,17 @@ def send_outreach(
     body = format_email(OUTREACH_BODY, name=recipient_name, sender_name=sender_name)
     subject = get_subject_for_poc(sender_name)
 
-    msg = MIMEMultipart()
+    msg = MIMEMultipart("alternative")
     msg["From"] = f"{sender_name} <{sender_email}>"
     msg["To"] = to_email
     msg["Subject"] = subject
     msg_id = make_msgid(domain=sender_email.split("@")[1])
     msg["Message-ID"] = msg_id
     msg["Date"] = formatdate(localtime=True)
+    # Plain text (fallback)
     msg.attach(MIMEText(body, "plain"))
+    # HTML with tracking pixel
+    msg.attach(MIMEText(_wrap_html(body, msg_id), "html"))
 
     server = _get_smtp(sender_email, app_password)
     server.sendmail(sender_email, to_email, msg.as_string())
@@ -80,7 +105,7 @@ def send_followup(
 
     subject = f"Re: {get_subject_for_poc(sender_name)}"
 
-    msg = MIMEMultipart()
+    msg = MIMEMultipart("alternative")
     msg["From"] = f"{sender_name} <{sender_email}>"
     msg["To"] = to_email
     msg["Subject"] = subject
@@ -89,7 +114,10 @@ def send_followup(
     msg["In-Reply-To"] = original_msg_id
     msg["References"] = original_msg_id
     msg["Date"] = formatdate(localtime=True)
+    # Plain text (fallback)
     msg.attach(MIMEText(body, "plain"))
+    # HTML with tracking pixel
+    msg.attach(MIMEText(_wrap_html(body, new_msg_id), "html"))
 
     server = _get_smtp(sender_email, app_password)
     server.sendmail(sender_email, to_email, msg.as_string())
