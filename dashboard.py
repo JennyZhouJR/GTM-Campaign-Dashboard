@@ -1063,59 +1063,78 @@ elif nav == "Payment & Performance":
     if df_pay.empty:
         st.info("No confirmed influencers.")
     else:
+        # ─── Campaign Delivery Progress ─────────────────────────────
+        _stages = df_pay["Collaboration Stage"].str.strip()
+        _contract = df_pay.get("Contract Status", pd.Series(dtype=str)).str.strip()
+        _n_total = len(df_pay)
+        _n_posted = ((_stages == "Posted") | (_stages == "Approved for posting")).sum()
+        _n_production = ((_stages != "") & (_stages != "Posted") & (_stages != "Approved for posting")).sum()
+        _n_pending = _n_total - _n_posted - _n_production
+
+        _pct_posted = (_n_posted / _n_total * 100) if _n_total > 0 else 0
+        _pct_prod = (_n_production / _n_total * 100) if _n_total > 0 else 0
+        _pct_pend = (_n_pending / _n_total * 100) if _n_total > 0 else 0
+
+        st.markdown(
+            f'<div style="margin-bottom:6px; font-size:0.82em; color:#6B7280;">'
+            f'<span style="color:#059669; font-weight:600;">📦 Posted: {_n_posted}</span>'
+            f'&nbsp;&nbsp;·&nbsp;&nbsp;'
+            f'<span style="color:#3B82F6; font-weight:600;">🎬 In production: {_n_production}</span>'
+            f'&nbsp;&nbsp;·&nbsp;&nbsp;'
+            f'<span style="color:#F59E0B; font-weight:600;">📝 Pending: {_n_pending}</span>'
+            f'&nbsp;&nbsp;·&nbsp;&nbsp;'
+            f'Total: {_n_total}'
+            f'</div>'
+            f'<div style="display:flex; height:12px; border-radius:6px; overflow:hidden; background:#F3F4F6; margin-bottom:16px;">'
+            f'<div style="width:{_pct_posted}%; background:#059669;"></div>'
+            f'<div style="width:{_pct_prod}%; background:#3B82F6;"></div>'
+            f'<div style="width:{_pct_pend}%; background:#F59E0B;"></div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        # ─── Summary Metrics ────────────────────────────────────────
         st.subheader("Summary")
-        m1, m2, m3, m4 = st.columns(4)
         total_cost = df_pay["_price_num"].dropna().sum()
-        m1.metric("Total Cost", f"${total_cost:,.0f}" if total_cost > 0 else "N/A")
         total_24hr = df_pay["_views_24hr_num"].dropna().sum()
-        m2.metric("Total 24hr Views", f"{total_24hr:,.0f}" if total_24hr > 0 else "N/A")
         total_signups = df_pay["_signups_num"].dropna().sum()
+
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("Total Cost", f"${total_cost:,.0f}" if total_cost > 0 else "N/A")
+        m2.metric("Total 24hr Views", f"{total_24hr:,.0f}" if total_24hr > 0 else "N/A")
         m3.metric("Total Signups", f"{total_signups:,.0f}" if total_signups > 0 else "N/A")
         if total_cost > 0 and total_signups > 0:
-            m4.metric("Avg Cost/Signup", f"${total_cost / total_signups:.2f}")
+            m4.metric("Cost/Signup", f"${total_cost / total_signups:.2f}")
         else:
-            m4.metric("Avg Cost/Signup", "N/A")
-
-        # CPM
-        st.markdown("---")
-        st.subheader("CPM (Cost per 1K Views)")
-        df_cpm = df_pay[["Name", "POC", "_price_num", "_views_24hr_num"]].dropna(subset=["_price_num"]).copy()
-        df_cpm["CPM"] = df_cpm.apply(
-            lambda r: (r["_price_num"] / r["_views_24hr_num"] * 1000)
-            if pd.notna(r["_views_24hr_num"]) and r["_views_24hr_num"] > 0 else None, axis=1)
-        if df_cpm["CPM"].notna().any():
-            vals = df_cpm["CPM"].dropna()
-            cm1, cm2, cm3 = st.columns(3)
-            cm1.metric("Avg CPM", f"${vals.mean():.2f}")
-            cm2.metric("Min CPM", f"${vals.min():.2f}")
-            cm3.metric("Max CPM", f"${vals.max():.2f}")
-            disp = df_cpm[df_cpm["CPM"].notna()][["Name", "POC", "_price_num", "_views_24hr_num", "CPM"]]
-            disp.columns = ["Name", "POC", "Cost ($)", "24hr Views", "CPM ($)"]
-            disp["CPM ($)"] = disp["CPM ($)"].round(2)
-            st.dataframe(disp.sort_values("CPM ($)"), use_container_width=True, hide_index=True)
+            m4.metric("Cost/Signup", "N/A")
+        if total_cost > 0 and total_24hr > 0:
+            m5.metric("Avg CPM", f"${total_cost / total_24hr * 1000:.2f}")
         else:
-            st.info("CPM will appear after 24hr Views are entered.")
+            m5.metric("Avg CPM", "N/A")
 
-        # Top Performance
+        # ─── Performance Ranking ─────────────────────────────────────
         st.markdown("---")
-        st.subheader("Top Performance")
-        perf = df_pay[["Name", "POC", "Post Link", "_views_24hr_num", "_signups_num", "_price_num"]].copy()
-        perf.columns = ["Name", "POC", "Post Link", "24hr Views", "Signups", "Cost ($)"]
-        tp1, tp2 = st.columns(2)
-        with tp1:
-            st.markdown("**By 24hr Views**")
-            v = perf.dropna(subset=["24hr Views"]).sort_values("24hr Views", ascending=False)
-            if not v.empty:
-                st.dataframe(v[["Name", "POC", "24hr Views", "Cost ($)"]], use_container_width=True, hide_index=True)
-            else:
-                st.info("No data yet.")
-        with tp2:
-            st.markdown("**By Signups**")
-            s = perf.dropna(subset=["Signups"]).sort_values("Signups", ascending=False)
-            if not s.empty:
-                st.dataframe(s[["Name", "POC", "Signups", "Cost ($)"]], use_container_width=True, hide_index=True)
-            else:
-                st.info("No data yet.")
+        st.subheader("Performance Ranking")
+        perf = df_pay[["Name", "POC", "_price_num", "_views_24hr_num", "_signups_num"]].copy()
+        perf.columns = ["Name", "POC", "Cost ($)", "24hr Views", "Signups"]
+        # Compute CPM and Cost/Signup
+        perf["CPM ($)"] = perf.apply(
+            lambda r: round(r["Cost ($)"] / r["24hr Views"] * 1000, 2)
+            if pd.notna(r["Cost ($)"]) and pd.notna(r["24hr Views"]) and r["24hr Views"] > 0 else None, axis=1)
+        perf["Cost/Signup ($)"] = perf.apply(
+            lambda r: round(r["Cost ($)"] / r["Signups"], 2)
+            if pd.notna(r["Cost ($)"]) and pd.notna(r["Signups"]) and r["Signups"] > 0 else None, axis=1)
+        # Only show rows with at least some data
+        perf_display = perf.dropna(subset=["Cost ($)"])
+        if not perf_display.empty:
+            # Sort by CPM (best value first), fallback for those without views
+            perf_sorted = perf_display.sort_values("CPM ($)", ascending=True, na_position="last")
+            st.dataframe(
+                perf_sorted[["Name", "POC", "Cost ($)", "24hr Views", "Signups", "CPM ($)", "Cost/Signup ($)"]],
+                use_container_width=True, hide_index=True,
+            )
+        else:
+            st.info("Performance data will appear after cost and views/signups are entered.")
 
         # Detail table
         st.markdown("---")
