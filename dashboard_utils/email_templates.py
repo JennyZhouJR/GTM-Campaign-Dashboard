@@ -46,6 +46,27 @@ Best,
 {sender_name}"""
 
 
+PAYMENT_CONFIRM_SUBJECT = "Payment Confirmation — Jobright x {name}"
+
+PAYMENT_CONFIRM_BODY = """\
+Hi {name},
+
+This is to confirm that your payment of ${amount} for the Jobright collaboration has been processed. Please allow 3-5 business days for the funds to appear in your account.
+
+If you have any questions about your payment, feel free to reach out.
+
+Thank you for being a part of the Jobright creator community!
+
+Best,
+{sender_name}
+Jobright.ai"""
+
+
 def format_email(template: str, name: str, sender_name: str) -> str:
     """Replace template variables."""
     return template.format(name=name, sender_name=sender_name)
+
+
+def format_payment_email(template: str, name: str, sender_name: str, amount: str) -> str:
+    """Replace template variables for payment confirmation."""
+    return template.format(name=name, sender_name=sender_name, amount=amount)

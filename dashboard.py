@@ -282,6 +282,7 @@ def show_editable_table(df_view, display_cols, editable_cols, key_prefix):
     if edited_rows and prev_rows:
         updates = []
         edit_details = []  # (sheet_row, col_name, new_value) for memory update
+        payment_email_tasks = []  # [(sheet_row, ...)] for payment confirmation emails
         for row_idx_str, row_changes in edited_rows.items():
             sheet_row = prev_rows.get(int(row_idx_str))
             if sheet_row is None:
@@ -309,6 +310,9 @@ def show_editable_table(df_view, display_cols, editable_cols, key_prefix):
                         # 3. Record Stage Start Date (3-day countdown starts now)
                         updates.append((sheet_row, COL["stage_start_date"] + 1, today_str))
                         edit_details.append((sheet_row, "Stage Start Date", today_str))
+                    # Queue payment confirmation email when Payment Progress → Paid
+                    if col_name == "Payment Progress" and val.strip() == "Paid":
+                        payment_email_tasks.append(sheet_row)
         if updates:
             try:
                 batch_update_cells(st.session_state["ws"], updates)
@@ -322,6 +326,37 @@ def show_editable_table(df_view, display_cols, editable_cols, key_prefix):
                 st.toast(f"Saved {len(updates)} change(s)")
             except Exception as e:
                 st.error(f"Save failed: {e}")
+
+            # Send payment confirmation emails (after successful save)
+            if payment_email_tasks and st.session_state.get("gmail_connected"):
+                from dashboard_utils.email_client import send_payment_confirmation
+                gmail_email = st.session_state["gmail_email"]
+                gmail_pw = st.session_state["gmail_password"]
+                sender_name = gmail_email.split("@")[0].capitalize()
+                df_mem = st.session_state.get("df", pd.DataFrame())
+                for s_row in payment_email_tasks:
+                    row_data = df_mem[df_mem["_sheet_row"] == s_row]
+                    if row_data.empty:
+                        continue
+                    row_data = row_data.iloc[0]
+                    to_email = (row_data.get("Contact", "") or "").strip()
+                    name = (row_data.get("Name", "") or "").strip()
+                    price = (row_data.get("Price（$)", "") or "").strip()
+                    if not to_email or not name:
+                        continue
+                    # Clean price for display (extract number)
+                    import re
+                    price_match = re.search(r'[\d,]+(?:\.\d+)?', price)
+                    amount = price_match.group(0) if price_match else price
+                    try:
+                        send_payment_confirmation(
+                            gmail_email, gmail_pw, to_email, name, sender_name, amount,
+                        )
+                        st.toast(f"💰 Payment confirmation sent to {name}")
+                    except Exception as e:
+                        st.warning(f"Payment saved but email failed for {name}: {e}")
+            elif payment_email_tasks and not st.session_state.get("gmail_connected"):
+                st.info("💡 Connect Gmail in Pipeline tab to auto-send payment confirmation emails.")
 
     # Store current df_view's row index -> sheet_row mapping for next cycle
     st.session_state[prev_key] = {i: int(row["_sheet_row"]) for i, (_, row) in enumerate(df_view.iterrows())}

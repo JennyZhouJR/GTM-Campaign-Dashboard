@@ -11,7 +11,8 @@ import time
 
 from dashboard_utils.email_templates import (
     OUTREACH_SUBJECT, OUTREACH_BODY, FOLLOWUP_1_BODY, FOLLOWUP_2_BODY,
-    format_email, get_subject_for_poc,
+    PAYMENT_CONFIRM_SUBJECT, PAYMENT_CONFIRM_BODY,
+    format_email, format_payment_email, get_subject_for_poc,
 )
 
 
@@ -95,6 +96,37 @@ def send_followup(
     server.quit()
 
     return new_msg_id
+
+
+def send_payment_confirmation(
+    sender_email: str,
+    app_password: str,
+    to_email: str,
+    recipient_name: str,
+    sender_name: str,
+    amount: str,
+) -> str:
+    """Send payment confirmation email. Returns the Message-ID."""
+    first_name = recipient_name.strip().split()[0] if recipient_name.strip() else "there"
+    body = format_payment_email(
+        PAYMENT_CONFIRM_BODY, name=first_name, sender_name=sender_name, amount=amount,
+    )
+    subject = PAYMENT_CONFIRM_SUBJECT.format(name=recipient_name.strip())
+
+    msg = MIMEMultipart()
+    msg["From"] = f"{sender_name} <{sender_email}>"
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg_id = make_msgid(domain=sender_email.split("@")[1])
+    msg["Message-ID"] = msg_id
+    msg["Date"] = formatdate(localtime=True)
+    msg.attach(MIMEText(body, "plain"))
+
+    server = _get_smtp(sender_email, app_password)
+    server.sendmail(sender_email, to_email, msg.as_string())
+    server.quit()
+
+    return msg_id
 
 
 def check_reply(sender_email: str, app_password: str, original_msg_id: str) -> bool:
