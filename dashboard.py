@@ -730,16 +730,124 @@ elif nav == "Pipeline":
                 except (ValueError, AttributeError):
                     pass
 
-        # Compute open rate stats
-        _sent_tracked = df_filtered[df_filtered["Email Message-ID"].str.strip() != ""] if "Email Message-ID" in df_filtered.columns else pd.DataFrame()
-        _sent_count = len(_sent_tracked)
+        # Compute open rate stats — use df_all (not filtered by Campaign Tag)
+        _sent_tracked_all = df_all[df_all["Email Message-ID"].str.strip() != ""] if "Email Message-ID" in df_all.columns else pd.DataFrame()
+        _sent_count = len(_sent_tracked_all)
         _opened_count = 0
-        if _sent_count > 0 and "Email Opened" in _sent_tracked.columns:
-            _opened_count = (_sent_tracked["Email Opened"].str.strip().str.lower() == "yes").sum()
+        if _sent_count > 0 and "Email Opened" in _sent_tracked_all.columns:
+            _opened_count = (_sent_tracked_all["Email Opened"].str.strip().str.lower() == "yes").sum()
         _open_rate_str = ""
         if _sent_count > 0:
             _open_pct = (_opened_count / _sent_count * 100)
             _open_rate_str = f", {_opened_count}/{_sent_count} opened ({_open_pct:.0f}%)"
+
+        # ─── Email Tracking Panel ────────────────────────────────────────
+        if _sent_count > 0:
+            with st.expander(f"📊 Email Tracking ({_sent_count} sent{_open_rate_str})", expanded=False):
+                # Summary metrics
+                _unopened = _sent_count - _opened_count
+                _tm1, _tm2, _tm3, _tm4 = st.columns(4)
+                _tm1.metric("Total Sent", _sent_count)
+                _tm2.metric("Opened", _opened_count)
+                _tm3.metric("Unopened", _unopened)
+                _tm4.metric("Open Rate", f"{_open_pct:.0f}%" if _sent_count > 0 else "N/A")
+
+                # Filters
+                _tf1, _tf2 = st.columns([2, 1])
+                _poc_opts = sorted(set(_sent_tracked_all["POC"].dropna().str.strip().unique()) - {""})
+                _sel_poc = _tf1.multiselect("Filter by POC", _poc_opts, key="track_poc")
+                _only_unopened = _tf2.checkbox("Only unopened", key="track_unopened")
+
+                _use_date = st.checkbox("Filter by sent date range", key="track_use_date")
+                if _use_date:
+                    _td = date.today()
+                    _dc1, _dc2 = st.columns(2)
+                    _start_track = _dc1.date_input("From", value=_td - timedelta(days=14), key="track_start")
+                    _end_track = _dc2.date_input("To", value=_td, key="track_end")
+
+                # Build tracking table
+                _tracked = _sent_tracked_all.copy()
+                if _sel_poc:
+                    _tracked = _tracked[_tracked["POC"].str.strip().isin(_sel_poc)]
+                if _only_unopened:
+                    _tracked = _tracked[_tracked["Email Opened"].str.strip().str.lower() != "yes"]
+
+                # Parse sent dates
+                def _parse_sent(val):
+                    if not val or not isinstance(val, str):
+                        return None
+                    try:
+                        return datetime.strptime(val.strip(), "%Y-%m-%d %H:%M")
+                    except (ValueError, AttributeError):
+                        return None
+
+                _tracked["_sent_parsed"] = _tracked["Last Email Sent"].apply(_parse_sent)
+                if _use_date:
+                    _tracked = _tracked[_tracked["_sent_parsed"].apply(
+                        lambda d: d is not None and _start_track <= d.date() <= _end_track
+                    )]
+
+                if _tracked.empty:
+                    st.info("No emails match the current filters.")
+                else:
+                    _now_ts = datetime.now()
+                    # Build display table with visual indicators
+                    _rows_html = '<table style="width:100%; border-collapse:collapse; font-size:0.87em;">'
+                    _rows_html += (
+                        '<thead><tr style="background:#F9FAFB; text-align:left;">'
+                        '<th style="padding:8px 10px; border-bottom:1px solid #E5E7EB;">Name</th>'
+                        '<th style="padding:8px 10px; border-bottom:1px solid #E5E7EB;">POC</th>'
+                        '<th style="padding:8px 10px; border-bottom:1px solid #E5E7EB;">Sent</th>'
+                        '<th style="padding:8px 10px; border-bottom:1px solid #E5E7EB;">Days ago</th>'
+                        '<th style="padding:8px 10px; border-bottom:1px solid #E5E7EB; text-align:center;">Opened</th>'
+                        '<th style="padding:8px 10px; border-bottom:1px solid #E5E7EB; text-align:center;">Opens</th>'
+                        '</tr></thead><tbody>'
+                    )
+                    # Sort by most recently sent first
+                    _tracked_sorted = _tracked.sort_values("_sent_parsed", ascending=False, na_position="last")
+                    for _, _tr in _tracked_sorted.iterrows():
+                        _tname = (_tr.get("Name", "") or "").strip() or "(no name)"
+                        _tpoc = (_tr.get("POC", "") or "").strip()
+                        _tpc = poc_color(_tpoc)
+                        _tsent = _tr.get("_sent_parsed")
+                        _tsent_str = _tsent.strftime("%m/%d %H:%M") if _tsent else "—"
+                        _tdays = (_now_ts - _tsent).days if _tsent else None
+                        _topened = (_tr.get("Email Opened", "") or "").strip().lower() == "yes"
+                        _tcount = _tr.get("Open Count", "") or "0"
+                        try:
+                            _tcount_int = int(str(_tcount).strip() or "0")
+                        except (ValueError, AttributeError):
+                            _tcount_int = 0
+
+                        # Opened icon
+                        if _topened:
+                            _open_cell = '<span style="color:#10B981; font-weight:600;">✅</span>'
+                        else:
+                            _open_cell = '<span style="color:#9CA3AF;">❌</span>'
+
+                        # Days badge — orange warning if 3+ days unopened
+                        if _tdays is None:
+                            _days_cell = '<span style="color:#9CA3AF;">—</span>'
+                        elif not _topened and _tdays >= 3:
+                            _days_cell = f'<span style="color:#F59E0B; font-weight:600;">⚠️ {_tdays}d</span>'
+                        else:
+                            _days_cell = f'<span style="color:#6B7280;">{_tdays}d</span>'
+
+                        _rows_html += (
+                            f'<tr style="border-bottom:1px solid #F3F4F6;">'
+                            f'<td style="padding:8px 10px;"><span style="color:#1F2937; font-weight:500;">{_tname}</span></td>'
+                            f'<td style="padding:8px 10px;">'
+                            f'<span style="display:inline-flex; align-items:center; gap:5px;">'
+                            f'<span style="width:7px; height:7px; border-radius:50%; background:{_tpc}; display:inline-block;"></span>'
+                            f'<span style="color:#374151;">{_tpoc}</span></span></td>'
+                            f'<td style="padding:8px 10px; color:#6B7280;">{_tsent_str}</td>'
+                            f'<td style="padding:8px 10px;">{_days_cell}</td>'
+                            f'<td style="padding:8px 10px; text-align:center;">{_open_cell}</td>'
+                            f'<td style="padding:8px 10px; text-align:center; color:#374151;">{_tcount_int}</td>'
+                            f'</tr>'
+                        )
+                    _rows_html += '</tbody></table>'
+                    st.markdown(_rows_html, unsafe_allow_html=True)
 
         with st.expander(f"📧 Email Outreach ({_unsent_count} unsent, {_fu_count} follow-ups needed{_open_rate_str})", expanded=False):
             # Gmail connection
