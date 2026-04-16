@@ -949,7 +949,8 @@ elif nav == "Pipeline":
         pipe_display = PIPELINE_DISPLAY_COLS + (["Days in Stage"] if "Days in Stage" in df_pipe.columns else [])
         show_editable_table(
             df_pipe, pipe_display,
-            {"Name": "text", "Status": "select_status", "Contract Status": "select_contract",
+            {"Name": "text", "Contact": "text", "Status": "select_status",
+             "Contract Status": "select_contract",
              "Collaboration Stage": "select_collab",
              "Campaign Tag": "select_campaign",
              "Confirm Date": "text", "POC": "text", "Notes": "text"},
@@ -1123,8 +1124,9 @@ elif nav == "Payment & Performance":
         st.subheader("Detail Table")
         show_editable_table(
             df_pay, PAYMENT_PERF_DISPLAY_COLS,
-            {"Name": "text", "Payment Receiving Account": "text", "Payment Progress": "select_payment",
-             "24hr Views": "text", "Link Signups": "text", "Retro Notes": "text"},
+            {"Name": "text", "Post Link": "text", "Post Date": "text",
+             "Payment Receiving Account": "text", "Payment Progress": "select_payment",
+             "24hr Views": "text", "Link Signups": "text", "ER": "text", "Retro Notes": "text"},
             "payment",
         )
 
