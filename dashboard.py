@@ -1112,6 +1112,53 @@ elif nav == "Payment & Performance":
         else:
             m5.metric("Avg CPM", "N/A")
 
+        # ─── Influencer Profile Breakdown ────────────────────────────
+        st.markdown("---")
+        st.subheader("Influencer Profile Breakdown")
+        _bd1, _bd2, _bd3 = st.columns(3)
+        _breakdown_palette = ["#748FFC", "#FF922B", "#63E6BE", "#F06595", "#B197FC",
+                              "#FCC419", "#22D3EE", "#A9E34B", "#FF6B6B", "#DDA0DD"]
+        for _col_ui, _col_name, _title in [
+            (_bd1, "Type", "Type"),
+            (_bd2, "Job Function", "Job Function"),
+            (_bd3, "Senority", "Seniority"),
+        ]:
+            with _col_ui:
+                if _col_name in df_pay.columns:
+                    _vals = df_pay[_col_name].str.strip()
+                    _vals = _vals[_vals != ""]
+                    if not _vals.empty:
+                        _counts = _vals.value_counts().reset_index()
+                        _counts.columns = [_title, "Count"]
+                        import plotly.graph_objects as go
+                        _fig = go.Figure(data=[go.Pie(
+                            labels=_counts[_title],
+                            values=_counts["Count"],
+                            marker=dict(colors=_breakdown_palette[:len(_counts)],
+                                        line=dict(color="#fff", width=2)),
+                            textinfo="value+percent",
+                            texttemplate="%{value} (%{percent})",
+                            textposition="inside",
+                            insidetextorientation="horizontal",
+                            hole=0.45,
+                            textfont=dict(size=10, family="DM Sans, Inter, sans-serif", color="#fff"),
+                        )])
+                        _fig.update_layout(
+                            title=dict(text=_title, font=dict(size=13)),
+                            margin=dict(t=36, b=60, l=10, r=10),
+                            height=320,
+                            showlegend=True,
+                            legend=dict(orientation="h", yanchor="top", y=-0.05,
+                                        xanchor="center", x=0.5, font=dict(size=10)),
+                            font=dict(family="DM Sans, Inter, sans-serif"),
+                            paper_bgcolor="rgba(0,0,0,0)",
+                        )
+                        st.plotly_chart(_fig, use_container_width=True, key=f"bd_{_col_name}")
+                    else:
+                        st.info(f"No {_title} data.")
+                else:
+                    st.info(f"No {_title} column.")
+
         # ─── Performance Ranking ─────────────────────────────────────
         st.markdown("---")
         st.subheader("Performance Ranking")
