@@ -947,7 +947,9 @@ elif nav == "Pipeline":
         pipe_display = PIPELINE_DISPLAY_COLS + (["Days in Stage"] if "Days in Stage" in df_pipe.columns else [])
         show_editable_table(
             df_pipe, pipe_display,
-            {"Name": "text", "Contact": "text", "Status": "select_status",
+            {"Name": "text", "Contact": "text", "Type": "text",
+             "Senority": "text", "Job Function": "text",
+             "Status": "select_status",
              "Contract Status": "select_contract",
              "Collaboration Stage": "select_collab",
              "Campaign Tag": "select_campaign",
@@ -1049,7 +1051,8 @@ elif nav == "Content & Delivery":
             df_content, CONTENT_DISPLAY_COLS,
             {"Name": "text", "Collaboration Stage": "select_collab", "Content Type": "text",
              "Post Link": "text", "Post Date": "text", "Tracking Link": "text",
-             "Price\uff08$)": "text", "24hr Views": "text", "Link Signups": "text"},
+             "Price\uff08$)": "text", "24hr Views": "text", "Link Signups": "text",
+             "Type": "text", "Senority": "text", "Job Function": "text"},
             "content",
         )
 
@@ -1281,7 +1284,8 @@ elif nav == "Payment & Performance":
             df_pay, PAYMENT_PERF_DISPLAY_COLS,
             {"Name": "text", "Post Link": "text", "Post Date": "text",
              "Payment Receiving Account": "text", "Payment Progress": "select_payment",
-             "24hr Views": "text", "Link Signups": "text", "ER": "text", "Retro Notes": "text"},
+             "24hr Views": "text", "Link Signups": "text", "ER": "text", "Retro Notes": "text",
+             "Type": "text", "Senority": "text", "Job Function": "text", "Content Type": "text"},
             "payment",
         )
 
