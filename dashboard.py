@@ -1077,7 +1077,7 @@ elif nav == "Payment & Performance":
 
         st.markdown(
             f'<div style="margin-bottom:6px; font-size:0.82em; color:#6B7280;">'
-            f'<span style="color:#059669; font-weight:600;">📦 Posted: {_n_posted}</span>'
+            f'<span style="color:#51CF66; font-weight:600;">📦 Posted: {_n_posted}</span>'
             f'&nbsp;&nbsp;·&nbsp;&nbsp;'
             f'<span style="color:#3B82F6; font-weight:600;">🎬 In production: {_n_production}</span>'
             f'&nbsp;&nbsp;·&nbsp;&nbsp;'
@@ -1086,7 +1086,7 @@ elif nav == "Payment & Performance":
             f'Total: {_n_total}'
             f'</div>'
             f'<div style="display:flex; height:12px; border-radius:6px; overflow:hidden; background:#F3F4F6; margin-bottom:16px;">'
-            f'<div style="width:{_pct_posted}%; background:#059669;"></div>'
+            f'<div style="width:{_pct_posted}%; background:#51CF66;"></div>'
             f'<div style="width:{_pct_prod}%; background:#3B82F6;"></div>'
             f'<div style="width:{_pct_pend}%; background:#F59E0B;"></div>'
             f'</div>',
