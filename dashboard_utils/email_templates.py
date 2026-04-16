@@ -3,7 +3,7 @@
 # Google Apps Script web app URL for email open tracking.
 # Fill this in after deploying EmailTracker.gs as a web app.
 # Example: https://script.google.com/macros/s/XXXXXXXXX/exec
-TRACKING_PIXEL_URL = ""
+TRACKING_PIXEL_URL = "https://script.google.com/macros/s/AKfycbwByqYEHlIt9RPksowe1qWYH-iGWBk3Le1g2gMT_NuiNQE_BX-WVGDYG0iH4kEilgoV/exec"
 
 OUTREACH_SUBJECT = "Paid Collaboration with Jobright.ai"
 
