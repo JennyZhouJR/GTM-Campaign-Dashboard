@@ -1159,6 +1159,84 @@ elif nav == "Payment & Performance":
                 else:
                     st.info(f"No {_title} column.")
 
+        # Second row: Content Type + Followers distribution
+        _bd4, _bd5 = st.columns(2)
+        # Content Type donut
+        with _bd4:
+            if "Content Type" in df_pay.columns:
+                _ct_vals = df_pay["Content Type"].str.strip()
+                _ct_vals = _ct_vals[_ct_vals != ""]
+                if not _ct_vals.empty:
+                    _ct_counts = _ct_vals.value_counts().reset_index()
+                    _ct_counts.columns = ["Content Type", "Count"]
+                    import plotly.graph_objects as go
+                    _fig_ct = go.Figure(data=[go.Pie(
+                        labels=_ct_counts["Content Type"],
+                        values=_ct_counts["Count"],
+                        marker=dict(colors=_breakdown_palette[:len(_ct_counts)],
+                                    line=dict(color="#fff", width=2)),
+                        textinfo="value+percent",
+                        texttemplate="%{value} (%{percent})",
+                        textposition="inside",
+                        insidetextorientation="horizontal",
+                        hole=0.45,
+                        textfont=dict(size=10, family="DM Sans, Inter, sans-serif", color="#fff"),
+                    )])
+                    _fig_ct.update_layout(
+                        title=dict(text="Content Type", font=dict(size=13)),
+                        margin=dict(t=36, b=60, l=10, r=10),
+                        height=320,
+                        showlegend=True,
+                        legend=dict(orientation="h", yanchor="top", y=-0.05,
+                                    xanchor="center", x=0.5, font=dict(size=10)),
+                        font=dict(family="DM Sans, Inter, sans-serif"),
+                        paper_bgcolor="rgba(0,0,0,0)",
+                    )
+                    st.plotly_chart(_fig_ct, use_container_width=True, key="bd_content_type")
+                else:
+                    st.info("No Content Type data.")
+        # Followers distribution donut (bucketed)
+        with _bd5:
+            _fol = df_pay["_followers_num"].dropna()
+            if not _fol.empty:
+                def _follower_bucket(n):
+                    if n < 10000: return "Nano (<10K)"
+                    elif n < 50000: return "Micro (10K-50K)"
+                    elif n < 100000: return "Mid (50K-100K)"
+                    elif n < 500000: return "Macro (100K-500K)"
+                    else: return "Mega (500K+)"
+                _fol_buckets = _fol.apply(_follower_bucket)
+                _bucket_order = ["Nano (<10K)", "Micro (10K-50K)", "Mid (50K-100K)",
+                                 "Macro (100K-500K)", "Mega (500K+)"]
+                _fol_counts = _fol_buckets.value_counts().reindex(_bucket_order).dropna().astype(int).reset_index()
+                _fol_counts.columns = ["Followers", "Count"]
+                import plotly.graph_objects as go
+                _fig_fol = go.Figure(data=[go.Pie(
+                    labels=_fol_counts["Followers"],
+                    values=_fol_counts["Count"],
+                    marker=dict(colors=["#B197FC", "#748FFC", "#22D3EE", "#FF922B", "#FF6B6B"][:len(_fol_counts)],
+                                line=dict(color="#fff", width=2)),
+                    textinfo="value+percent",
+                    texttemplate="%{value} (%{percent})",
+                    textposition="inside",
+                    insidetextorientation="horizontal",
+                    hole=0.45,
+                    textfont=dict(size=10, family="DM Sans, Inter, sans-serif", color="#fff"),
+                )])
+                _fig_fol.update_layout(
+                    title=dict(text="Followers Distribution", font=dict(size=13)),
+                    margin=dict(t=36, b=60, l=10, r=10),
+                    height=320,
+                    showlegend=True,
+                    legend=dict(orientation="h", yanchor="top", y=-0.05,
+                                xanchor="center", x=0.5, font=dict(size=10)),
+                    font=dict(family="DM Sans, Inter, sans-serif"),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                )
+                st.plotly_chart(_fig_fol, use_container_width=True, key="bd_followers")
+            else:
+                st.info("No Followers data.")
+
         # ─── Performance Ranking ─────────────────────────────────────
         st.markdown("---")
         st.subheader("Performance Ranking")
@@ -1178,8 +1256,13 @@ elif nav == "Payment & Performance":
         # Only show rows with at least some data
         perf_display = perf.dropna(subset=["Cost ($)"])
         if not perf_display.empty:
-            # Sort by CPM (best value first), fallback for those without views
-            perf_sorted = perf_display.sort_values("CPM ($)", ascending=True, na_position="last")
+            # Sort toggle
+            _sort_mode = st.pills("Sort by", ["By CPM (best value)", "By 24hr Views"],
+                                  default="By CPM (best value)", key="perf_sort")
+            if _sort_mode == "By 24hr Views":
+                perf_sorted = perf_display.sort_values("24hr Views", ascending=False, na_position="last")
+            else:
+                perf_sorted = perf_display.sort_values("CPM ($)", ascending=True, na_position="last")
             _perf_display_order = ["Name", "POC", "Content Type", "Type", "Seniority", "Job Function",
                                    "Cost ($)", "24hr Views", "Signups", "CPM ($)", "Cost/Signup ($)", "Post Link"]
             _perf_display_order = [c for c in _perf_display_order if c in perf_sorted.columns]
