@@ -103,12 +103,13 @@ CAMPAIGN_TAG_OPTIONS = [
 PIPELINE_DISPLAY_COLS = [
     "POC", "Name", "Profile Link", "Contact", "followers", "Country", "Type",
     "Status", "Contract Status", "Collaboration Stage", "Campaign Tag", "Post Date",
+    "Notes",
 ]
 
 CONTENT_DISPLAY_COLS = [
     "Name", "Profile Link", "Status", "Collaboration Stage",
-    "Content Type", "Post Link", "Post Date", "Price（$)",
-    "24hr Views", "Link Signups",
+    "Content Type", "Post Link", "Post Date", "Tracking Link",
+    "Price（$)", "24hr Views", "Link Signups",
 ]
 
 PAYMENT_PERF_DISPLAY_COLS = [
@@ -119,11 +120,6 @@ PAYMENT_PERF_DISPLAY_COLS = [
     "Retro Notes",
 ]
 
-RETRO_DISPLAY_COLS = [
-    "Name", "Profile Link", "Status", "Collaboration Stage",
-    "Post Link", "Post Date", "24hr Views", "Link Signups",
-    "ER", "Retro Notes",
-]
 
 
 # ─── DataFrame helpers ────────────────────────────────────────────────────────
