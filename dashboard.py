@@ -329,32 +329,35 @@ def show_editable_table(df_view, display_cols, editable_cols, key_prefix):
 
             # Send payment confirmation emails (after successful save)
             if payment_email_tasks and st.session_state.get("gmail_connected"):
-                from dashboard_utils.email_client import send_payment_confirmation
-                gmail_email = st.session_state["gmail_email"]
-                gmail_pw = st.session_state["gmail_password"]
-                sender_name = gmail_email.split("@")[0].capitalize()
-                df_mem = st.session_state.get("df", pd.DataFrame())
-                for s_row in payment_email_tasks:
-                    row_data = df_mem[df_mem["_sheet_row"] == s_row]
-                    if row_data.empty:
-                        continue
-                    row_data = row_data.iloc[0]
-                    to_email = (row_data.get("Contact", "") or "").strip()
-                    name = (row_data.get("Name", "") or "").strip()
-                    price = (row_data.get("Price（$)", "") or "").strip()
-                    if not to_email or not name:
-                        continue
-                    # Clean price for display (extract number)
-                    import re
-                    price_match = re.search(r'[\d,]+(?:\.\d+)?', price)
-                    amount = price_match.group(0) if price_match else price
-                    try:
-                        send_payment_confirmation(
-                            gmail_email, gmail_pw, to_email, name, sender_name, amount,
-                        )
-                        st.toast(f"💰 Payment confirmation sent to {name}")
-                    except Exception as e:
-                        st.warning(f"Payment saved but email failed for {name}: {e}")
+                try:
+                    from dashboard_utils.email_client import send_payment_confirmation as _send_pay_confirm
+                    import re as _re
+                    gmail_email = st.session_state["gmail_email"]
+                    gmail_pw = st.session_state["gmail_password"]
+                    sender_name = gmail_email.split("@")[0].capitalize()
+                    df_mem = st.session_state.get("df", pd.DataFrame())
+                    for s_row in payment_email_tasks:
+                        row_data = df_mem[df_mem["_sheet_row"] == s_row]
+                        if row_data.empty:
+                            continue
+                        row_data = row_data.iloc[0]
+                        to_email = (row_data.get("Contact", "") or "").strip()
+                        name = (row_data.get("Name", "") or "").strip()
+                        price = (row_data.get("Price（$)", "") or "").strip()
+                        if not to_email or not name:
+                            continue
+                        # Clean price for display (extract number)
+                        price_match = _re.search(r'[\d,]+(?:\.\d+)?', price)
+                        amount = price_match.group(0) if price_match else price
+                        try:
+                            _send_pay_confirm(
+                                gmail_email, gmail_pw, to_email, name, sender_name, amount,
+                            )
+                            st.toast(f"💰 Payment confirmation sent to {name}")
+                        except Exception as e:
+                            st.warning(f"Payment saved but email failed for {name}: {e}")
+                except ImportError:
+                    st.warning("Payment saved but email module not available. Please redeploy.")
             elif payment_email_tasks and not st.session_state.get("gmail_connected"):
                 st.info("💡 Connect Gmail in Pipeline tab to auto-send payment confirmation emails.")
 
