@@ -1115,23 +1115,31 @@ elif nav == "Payment & Performance":
         # ─── Performance Ranking ─────────────────────────────────────
         st.markdown("---")
         st.subheader("Performance Ranking")
-        perf = df_pay[["Name", "POC", "_price_num", "_views_24hr_num", "_signups_num"]].copy()
-        perf.columns = ["Name", "POC", "Cost ($)", "24hr Views", "Signups"]
+        _perf_cols = ["Name", "POC", "Post Link", "Content Type", "Type",
+                      "Senority", "Job Function", "_price_num", "_views_24hr_num", "_signups_num"]
+        _perf_available = [c for c in _perf_cols if c in df_pay.columns]
+        perf = df_pay[_perf_available].copy()
+        perf = perf.rename(columns={"_price_num": "Cost ($)", "_views_24hr_num": "24hr Views",
+                                     "_signups_num": "Signups", "Senority": "Seniority"})
         # Compute CPM and Cost/Signup
         perf["CPM ($)"] = perf.apply(
             lambda r: round(r["Cost ($)"] / r["24hr Views"] * 1000, 2)
-            if pd.notna(r["Cost ($)"]) and pd.notna(r["24hr Views"]) and r["24hr Views"] > 0 else None, axis=1)
+            if pd.notna(r.get("Cost ($)")) and pd.notna(r.get("24hr Views")) and r["24hr Views"] > 0 else None, axis=1)
         perf["Cost/Signup ($)"] = perf.apply(
             lambda r: round(r["Cost ($)"] / r["Signups"], 2)
-            if pd.notna(r["Cost ($)"]) and pd.notna(r["Signups"]) and r["Signups"] > 0 else None, axis=1)
+            if pd.notna(r.get("Cost ($)")) and pd.notna(r.get("Signups")) and r["Signups"] > 0 else None, axis=1)
         # Only show rows with at least some data
         perf_display = perf.dropna(subset=["Cost ($)"])
         if not perf_display.empty:
             # Sort by CPM (best value first), fallback for those without views
             perf_sorted = perf_display.sort_values("CPM ($)", ascending=True, na_position="last")
+            _perf_display_order = ["Name", "POC", "Content Type", "Type", "Seniority", "Job Function",
+                                   "Cost ($)", "24hr Views", "Signups", "CPM ($)", "Cost/Signup ($)", "Post Link"]
+            _perf_display_order = [c for c in _perf_display_order if c in perf_sorted.columns]
             st.dataframe(
-                perf_sorted[["Name", "POC", "Cost ($)", "24hr Views", "Signups", "CPM ($)", "Cost/Signup ($)"]],
+                perf_sorted[_perf_display_order],
                 use_container_width=True, hide_index=True,
+                column_config={"Post Link": st.column_config.LinkColumn("Post Link")},
             )
         else:
             st.info("Performance data will appear after cost and views/signups are entered.")
