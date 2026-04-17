@@ -189,39 +189,20 @@ def compute_baseline_views(reels: list, exclude_shortcode: str = "", top_n: int 
 
 
 def compute_baseline_er(reels: list, exclude_shortcode: str = "", top_n: int = 10) -> float:
-    """Compute AVERAGE ER from recent reels, excluding pinned reels and a specific shortcode."""
-    filtered = []
-    for reel in reels:
-        # Skip pinned
-        if reel.get("isPinned"):
-            continue
-        # Skip campaign post itself
-        if exclude_shortcode and reel.get("shortCode") == exclude_shortcode:
-            continue
-        # Must have views to be useful
-        views = reel.get("videoPlayCount") or reel.get("videoViewCount") or 0
-        if views <= 0:
-            continue
-        filtered.append(reel)
+    """Compute AVERAGE ER from recent reels, excluding pinned reels and campaign post.
 
-    # Sort by timestamp descending (newest first)
-    def _ts_key(r):
-        t = r.get("timestamp", "")
-        return t or ""
-    filtered.sort(key=_ts_key, reverse=True)
-
-    # Take top N
-    selected = filtered[:top_n]
+    Uses the exact same reel selection as compute_baseline_views to keep
+    ER and Views baselines based on the same 10 reels.
+    """
+    selected = _filter_baseline_reels(reels, exclude_shortcode, top_n)
     if not selected:
         return None
-
     er_values = []
     for reel in selected:
         er = compute_er(reel.get("likesCount"), reel.get("commentsCount"),
                         reel.get("videoPlayCount") or reel.get("videoViewCount"))
         if er is not None:
             er_values.append(er)
-
     if not er_values:
         return None
     return round(statistics.mean(er_values), 2)
