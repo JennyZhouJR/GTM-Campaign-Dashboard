@@ -216,13 +216,15 @@ def sync_views(days: int = 3, force: bool = False):
     df = prepare_dataframe(df)
 
     today = date.today()
+    latest_scrape_date = today - timedelta(days=1)   # only scrape posts from yesterday or earlier
     cutoff = today - timedelta(days=days)
 
-    # Filter: Status=Confirm, Post Link non-empty, Post Date within window
+    # Filter: Status=Confirm, Post Link non-empty, Post Date between cutoff and yesterday
+    # Excludes today's posts (not yet 24h old → data would be premature)
     candidates = df[df["Status"] == "Confirm"].copy()
     candidates = candidates[candidates["Post Link"].str.strip() != ""]
     candidates = candidates[candidates["_post_date_parsed"].apply(
-        lambda d: d is not None and cutoff <= d <= today
+        lambda d: d is not None and cutoff <= d <= latest_scrape_date
     )]
 
     # Only pick rows with missing 24hr Views unless --force
