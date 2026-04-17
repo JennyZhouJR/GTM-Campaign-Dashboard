@@ -18,7 +18,7 @@ import gspread
 import pandas as pd
 from oauth2client.service_account import ServiceAccountCredentials
 
-from dashboard_utils.email_client import check_reply, send_followup
+from dashboard_utils.email_client import check_reply_status, send_followup, REPLY_YES, REPLY_NO, REPLY_UNKNOWN
 from dashboard_utils.data_model import COL, HEADER_NAMES
 
 # ─── Config ──────────────────────────────────────────────────────────────────
@@ -149,11 +149,16 @@ def run_followups():
 
         sender_email = poc_account["email"]
 
-        # Check if they replied
-        replied = check_reply(sender_email, app_password, msg_id)
-        if replied:
+        # Check if they replied (tri-state: YES/NO/UNKNOWN)
+        reply_status = check_reply_status(sender_email, app_password, msg_id)
+        if reply_status == REPLY_YES:
             skipped_replied += 1
             print(f"  ⏭️ {name} — already replied, skipping")
+            continue
+        if reply_status == REPLY_UNKNOWN:
+            # Fail-closed: don't send if we couldn't verify — avoids spamming
+            # people who already replied when Gmail IMAP is having issues.
+            print(f"  ⚠️ {name} — IMAP check failed, skipping this run (will retry tomorrow)")
             continue
 
         # Send follow-up

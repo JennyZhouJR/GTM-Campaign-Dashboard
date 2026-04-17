@@ -991,7 +991,10 @@ elif nav == "Pipeline":
                         with st.expander(f"🔄 Follow-Ups ({len(df_followable)} of {connected_poc}'s people awaiting reply)", expanded=False):
                             st.caption(f"🔒 Only {connected_poc}'s rows shown.")
 
-                            from dashboard_utils.email_client import check_reply, send_followup as send_fu
+                            from dashboard_utils.email_client import (
+                                check_reply_status, send_followup as send_fu,
+                                REPLY_YES, REPLY_UNKNOWN,
+                            )
 
                             now = datetime.now()
                             fu_candidates = []
@@ -1022,9 +1025,16 @@ elif nav == "Pipeline":
                                         r = c["row"]
                                         msg_id = r["Email Message-ID"]
 
-                                        # Check if they already replied
-                                        replied = check_reply(gmail_email, st.session_state["gmail_password"], msg_id)
-                                        if replied:
+                                        # Check if they already replied (tri-state)
+                                        _reply_status = check_reply_status(
+                                            gmail_email, st.session_state["gmail_password"], msg_id
+                                        )
+                                        if _reply_status == REPLY_YES:
+                                            skipped += 1
+                                            continue
+                                        if _reply_status == REPLY_UNKNOWN:
+                                            # Fail-closed: don't send if we can't verify
+                                            st.warning(f"⚠️ {r['Name']} — IMAP check failed, skipping to avoid duplicate send.")
                                             skipped += 1
                                             continue
 

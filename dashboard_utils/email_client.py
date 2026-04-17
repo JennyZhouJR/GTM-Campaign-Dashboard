@@ -157,30 +157,55 @@ def send_payment_confirmation(
     return msg_id
 
 
-def check_reply(sender_email: str, app_password: str, original_msg_id: str) -> bool:
-    """Check via IMAP if someone replied to the email with the given Message-ID."""
+# Tri-state reply check results
+REPLY_YES = "replied"       # Confirmed they replied
+REPLY_NO = "no_reply"       # Confirmed they did NOT reply
+REPLY_UNKNOWN = "unknown"   # Could not verify (IMAP/auth/network error)
+
+
+def check_reply_status(sender_email: str, app_password: str, original_msg_id: str) -> str:
+    """Check via IMAP if someone replied. Returns REPLY_YES / REPLY_NO / REPLY_UNKNOWN.
+
+    REPLY_UNKNOWN is returned on any error (auth failure, timeout, IMAP down) —
+    callers should treat this as "don't send follow-up" (fail-closed) to avoid
+    spamming people who already replied.
+    """
+    mail = None
     try:
         mail = imaplib.IMAP4_SSL("imap.gmail.com", timeout=15)
         mail.login(sender_email, app_password)
         mail.select("INBOX")
 
         # Search for emails that reference the original message
-        clean_id = original_msg_id.strip("<>")
         _, data = mail.search(None, f'(HEADER In-Reply-To "{original_msg_id}")')
-        if data[0]:
-            mail.logout()
-            return True
+        if data and data[0]:
+            return REPLY_YES
 
         # Also check References header
         _, data = mail.search(None, f'(HEADER References "{original_msg_id}")')
-        if data[0]:
-            mail.logout()
-            return True
+        if data and data[0]:
+            return REPLY_YES
 
-        mail.logout()
-        return False
-    except Exception:
-        return False
+        return REPLY_NO
+    except Exception as e:
+        # Log but don't raise — caller decides what to do with UNKNOWN
+        print(f"⚠️ IMAP check_reply failed for {sender_email}: {e}")
+        return REPLY_UNKNOWN
+    finally:
+        if mail is not None:
+            try:
+                mail.logout()
+            except Exception:
+                pass
+
+
+def check_reply(sender_email: str, app_password: str, original_msg_id: str) -> bool:
+    """Legacy wrapper — returns True ONLY if we confirmed a reply.
+
+    Callers wanting the tri-state (to skip sends on UNKNOWN) should use
+    check_reply_status directly.
+    """
+    return check_reply_status(sender_email, app_password, original_msg_id) == REPLY_YES
 
 
 def batch_send_outreach(
