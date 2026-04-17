@@ -156,14 +156,40 @@ def scrape_reels_batch(client: ApifyClient, usernames: list, limit_per_user: int
     return grouped
 
 
-def compute_baseline_er(reels: list, exclude_shortcode: str = "", top_n: int = 10) -> float:
-    """Compute median ER from recent reels, excluding pinned reels and a specific shortcode.
+def _filter_baseline_reels(reels: list, exclude_shortcode: str = "", top_n: int = 10) -> list:
+    """Filter and sort reels for baseline calculations (shared by ER + views)."""
+    filtered = []
+    for reel in reels:
+        # Skip pinned
+        if reel.get("isPinned"):
+            continue
+        # Skip campaign post itself
+        if exclude_shortcode and reel.get("shortCode") == exclude_shortcode:
+            continue
+        # Must have views to be useful
+        views = reel.get("videoPlayCount") or reel.get("videoViewCount") or 0
+        if views <= 0:
+            continue
+        filtered.append(reel)
+    # Sort by timestamp descending (newest first)
+    filtered.sort(key=lambda r: r.get("timestamp", "") or "", reverse=True)
+    return filtered[:top_n]
 
-    - Excludes pinned reels (isPinned == True)
-    - Excludes the reel matching exclude_shortcode (the campaign post itself)
-    - Sorts by timestamp descending, takes top N
-    - Returns median ER (more robust than mean)
-    """
+
+def compute_baseline_views(reels: list, exclude_shortcode: str = "", top_n: int = 10) -> int:
+    """Compute AVERAGE view count from recent reels (excludes pinned + campaign post)."""
+    selected = _filter_baseline_reels(reels, exclude_shortcode, top_n)
+    if not selected:
+        return None
+    views = [r.get("videoPlayCount") or r.get("videoViewCount") or 0 for r in selected]
+    views = [v for v in views if v > 0]
+    if not views:
+        return None
+    return int(statistics.mean(views))
+
+
+def compute_baseline_er(reels: list, exclude_shortcode: str = "", top_n: int = 10) -> float:
+    """Compute AVERAGE ER from recent reels, excluding pinned reels and a specific shortcode."""
     filtered = []
     for reel in reels:
         # Skip pinned
@@ -198,7 +224,7 @@ def compute_baseline_er(reels: list, exclude_shortcode: str = "", top_n: int = 1
 
     if not er_values:
         return None
-    return round(statistics.median(er_values), 2)
+    return round(statistics.mean(er_values), 2)
 
 
 # ─── Main sync ────────────────────────────────────────────────────────────────
@@ -240,17 +266,20 @@ def sync_views(days: int = 3, force: bool = False):
     client = ApifyClient(APIFY_TOKEN)
 
     # Build work items: (sheet_row, name, post_url, shortcode, username_from_url)
+    AVG_IMPRESSIONS_COL = "Recent Average Impressions（The Latest 10 Videos\n)"
     work = []
     for _, row in candidates.iterrows():
         post_url = clean_post_url(row["Post Link"])
         if not post_url:
             continue  # Skip if we can't parse a URL
+        existing_avg = (row.get(AVG_IMPRESSIONS_COL, "") or "").strip()
         work.append({
             "sheet_row": int(row["_sheet_row"]),
             "name": (row.get("Name", "") or "").strip() or "(no name)",
             "post_url": post_url,
             "shortcode": extract_shortcode_from_url(post_url),
             "username_from_url": extract_username_from_url(post_url),
+            "has_avg_impressions": bool(existing_avg),  # True means don't overwrite
         })
 
     if not work:
@@ -311,10 +340,13 @@ def sync_views(days: int = 3, force: bool = False):
         comments = post_data.get("commentsCount") or 0
         post_er = compute_er(likes, comments, play_count)
 
-        # Baseline ER
+        # Baseline ER (+ Baseline Views for auto-fill if Avg Impressions is empty)
         username = w["username"]
         reels = reels_by_user.get(username, []) if username else []
         baseline_er = compute_baseline_er(
+            reels, exclude_shortcode=w["shortcode"], top_n=10
+        ) if reels else None
+        baseline_views = compute_baseline_views(
             reels, exclude_shortcode=w["shortcode"], top_n=10
         ) if reels else None
 
@@ -337,6 +369,9 @@ def sync_views(days: int = 3, force: bool = False):
             updates.append((sheet_row, COL["post_er"] + 1, f"{post_er:.2f}%"))
         if baseline_er is not None:
             updates.append((sheet_row, COL["baseline_er"] + 1, f"{baseline_er:.2f}%"))
+        # Only fill Avg Impressions if it's currently empty (don't overwrite manually entered values)
+        if baseline_views is not None and not w["has_avg_impressions"]:
+            updates.append((sheet_row, COL["avg_impressions"] + 1, str(baseline_views)))
         ok_count += 1
 
     # ═══ STEP 4: Batch write to Sheet ═══
