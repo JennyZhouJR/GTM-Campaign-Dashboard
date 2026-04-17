@@ -2,8 +2,9 @@ name: Sync 24hr Views + ER
 
 on:
   schedule:
-    # Run daily at 9am EST (2pm UTC) — gives 24h window after a post
-    - cron: '0 14 * * *'
+    # Run daily at 11:59 PM EST (04:59 UTC next day) — guarantees all yesterday's
+    # posts have been live for ≥24h before scraping.
+    - cron: '59 4 * * *'
   workflow_dispatch:
 
 jobs:
