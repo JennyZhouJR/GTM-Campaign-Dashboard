@@ -122,6 +122,7 @@ PAYMENT_PERF_DISPLAY_COLS = [
     "Name", "Profile Link", "Payment Receiving Account",
     "Payment Progress", "Post Link", "Post Date",
     "24hr Views", "Link Signups", "ER",
+    "Post ER", "Baseline ER",
     "Recent Average Impressions（The Latest 10 Videos\n)",
     "Retro Notes",
 ]

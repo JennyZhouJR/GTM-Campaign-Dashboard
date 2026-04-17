@@ -1431,7 +1431,8 @@ elif nav == "Payment & Performance":
             df_pay, PAYMENT_PERF_DISPLAY_COLS,
             {"Name": "text", "Post Link": "text", "Post Date": "text",
              "Payment Receiving Account": "text", "Payment Progress": "select_payment",
-             "24hr Views": "text", "Link Signups": "text", "ER": "text", "Retro Notes": "text",
+             "24hr Views": "text", "Link Signups": "text", "ER": "text",
+             "Post ER": "text", "Baseline ER": "text", "Retro Notes": "text",
              "Type": "text", "Senority": "text", "Job Function": "text", "Content Type": "text"},
             "payment",
         )
