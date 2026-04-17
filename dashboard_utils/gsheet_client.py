@@ -46,16 +46,17 @@ COL_LETTERS = [
 def _get_worksheet():
     """Connect to Google Sheet and return first worksheet.
 
-    Works in two modes:
-    1. Local: reads credentials from GSHEET_CRED file path
-    2. Streamlit Cloud: reads credentials from st.secrets["gcp_service_account"]
+    Works in three modes (tries in order):
+    1. Streamlit Cloud: reads credentials from st.secrets["gcp_service_account"]
+    2. GitHub Actions / any env: reads credentials from GSHEET_CREDENTIALS env var (JSON string)
+    3. Local dev: reads credentials from GSHEET_CRED file path
     """
     scope = [
         "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/drive",
     ]
 
-    # Try Streamlit secrets first (cloud deployment)
+    # 1. Try Streamlit secrets first (cloud deployment)
     try:
         import streamlit as st
         if "gcp_service_account" in st.secrets:
@@ -65,9 +66,18 @@ def _get_worksheet():
             spreadsheet = client.open_by_url(GSHEET_URL)
             return spreadsheet.get_worksheet(0)
     except Exception:
-        pass  # Fall through to local file
+        pass  # Fall through
 
-    # Local fallback: read from file
+    # 2. Try env var (for GitHub Actions and other automation)
+    cred_json = os.environ.get("GSHEET_CREDENTIALS")
+    if cred_json:
+        cred_dict = json.loads(cred_json)
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(cred_dict, scope)
+        client = gspread.authorize(creds)
+        spreadsheet = client.open_by_url(GSHEET_URL)
+        return spreadsheet.get_worksheet(0)
+
+    # 3. Local fallback: read from file
     creds = ServiceAccountCredentials.from_json_keyfile_name(GSHEET_CRED, scope)
     client = gspread.authorize(creds)
     spreadsheet = client.open_by_url(GSHEET_URL)
