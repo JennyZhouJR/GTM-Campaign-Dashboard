@@ -431,7 +431,7 @@ st.caption("  \u00b7  ".join(_subtitle_parts))
 
 # ─── Navigation ──────────────────────────────────────────────────────────────
 
-NAV_OPTIONS = ["Overview", "Pipeline", "Content & Delivery", "Payment & Performance"]
+NAV_OPTIONS = ["Overview", "Pipeline", "Content & Delivery", "Payment & Performance", "Report"]
 
 nav = st.pills(
     "nav", NAV_OPTIONS,
@@ -1458,3 +1458,380 @@ elif nav == "Payment & Performance":
         st.download_button("\U0001f4e5 Export Campaign Report (CSV)", data=csv,
                            file_name=f"campaign_{start_date}_{end_date}.csv", mime="text/csv",
                            use_container_width=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Report — Campaign Retrospective Analysis
+# ═══════════════════════════════════════════════════════════════════════════════
+
+elif nav == "Report":
+    df_rep = df_filtered[df_filtered["Status"] == "Confirm"].copy()
+    if df_rep.empty:
+        st.info("No confirmed influencers in this view. Change Campaign Tag or Status filter.")
+    else:
+        # ─── Prepare derived columns ──────────────────────────────────────
+        df_rep = df_rep.copy()
+        df_rep["_cpm"] = df_rep.apply(
+            lambda r: (r["_price_num"] / r["_views_24hr_num"] * 1000)
+            if pd.notna(r.get("_price_num")) and pd.notna(r.get("_views_24hr_num")) and r["_views_24hr_num"] > 0 else None,
+            axis=1,
+        )
+        df_rep["_cost_per_signup"] = df_rep.apply(
+            lambda r: (r["_price_num"] / r["_signups_num"])
+            if pd.notna(r.get("_price_num")) and pd.notna(r.get("_signups_num")) and r["_signups_num"] > 0 else None,
+            axis=1,
+        )
+        df_rep["_er_uplift"] = df_rep.apply(
+            lambda r: ((r["_post_er_num"] / r["_baseline_er_num"]) - 1) * 100
+            if pd.notna(r.get("_post_er_num")) and pd.notna(r.get("_baseline_er_num")) and r["_baseline_er_num"] > 0 else None,
+            axis=1,
+        )
+
+        # Follower bucket function
+        def _fbucket(n):
+            if n is None or pd.isna(n):
+                return None
+            if n < 10000: return "Nano (<10K)"
+            if n < 50000: return "Micro (10K-50K)"
+            if n < 100000: return "Mid (50K-100K)"
+            if n < 500000: return "Macro (100K-500K)"
+            return "Mega (500K+)"
+        df_rep["_follower_bucket"] = df_rep["_followers_num"].apply(_fbucket)
+
+        # ─── Executive Summary ────────────────────────────────────────
+        st.subheader("📊 Executive Summary")
+        # Campaign date range
+        post_dates = df_rep["_post_date_parsed"].dropna()
+        if not post_dates.empty:
+            _dmin = min(post_dates).strftime("%m/%d/%Y")
+            _dmax = max(post_dates).strftime("%m/%d/%Y")
+            _range_str = f"{_dmin} – {_dmax}" if _dmin != _dmax else _dmin
+        else:
+            _range_str = "—"
+        selected_tag_str = selected_tag if selected_tag != "(All)" else "All Campaigns"
+        st.caption(f"**{selected_tag_str}** · Posts dated {_range_str} · {len(df_rep)} confirmed influencers")
+
+        # Delivery progress bar (reuse logic)
+        _stages = df_rep["Collaboration Stage"].str.strip()
+        _n_total = len(df_rep)
+        _n_posted = ((_stages == "Posted") | (_stages == "Approved for posting")).sum()
+        _n_prod = ((_stages != "") & (_stages != "Posted") & (_stages != "Approved for posting")).sum()
+        _n_pend = _n_total - _n_posted - _n_prod
+        _pp = (_n_posted / _n_total * 100) if _n_total else 0
+        _pr = (_n_prod / _n_total * 100) if _n_total else 0
+        _pe = (_n_pend / _n_total * 100) if _n_total else 0
+        st.markdown(
+            f'<div style="margin-bottom:6px; font-size:0.82em; color:#6B7280;">'
+            f'<span style="color:#63E6BE; font-weight:600;">📦 Posted: {_n_posted}</span>&nbsp;&nbsp;·&nbsp;&nbsp;'
+            f'<span style="color:#3B82F6; font-weight:600;">🎬 In production: {_n_prod}</span>&nbsp;&nbsp;·&nbsp;&nbsp;'
+            f'<span style="color:#F59E0B; font-weight:600;">📝 Pending: {_n_pend}</span></div>'
+            f'<div style="display:flex; height:12px; border-radius:6px; overflow:hidden; background:#F3F4F6; margin-bottom:16px;">'
+            f'<div style="width:{_pp}%; background:#63E6BE;"></div>'
+            f'<div style="width:{_pr}%; background:#3B82F6;"></div>'
+            f'<div style="width:{_pe}%; background:#F59E0B;"></div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        # 5 summary metrics
+        r_total_cost = df_rep["_price_num"].dropna().sum()
+        r_total_views = df_rep["_views_24hr_num"].dropna().sum()
+        r_total_signups = df_rep["_signups_num"].dropna().sum()
+        rm1, rm2, rm3, rm4, rm5 = st.columns(5)
+        rm1.metric("Total Cost", f"${r_total_cost:,.0f}" if r_total_cost else "N/A")
+        rm2.metric("Total 24hr Views", f"{r_total_views:,.0f}" if r_total_views else "N/A")
+        rm3.metric("Total Signups", f"{r_total_signups:,.0f}" if r_total_signups else "N/A")
+        rm4.metric("Cost/Signup", f"${r_total_cost / r_total_signups:.2f}" if r_total_cost and r_total_signups else "N/A")
+        rm5.metric("Avg CPM", f"${r_total_cost / r_total_views * 1000:.2f}" if r_total_cost and r_total_views else "N/A")
+
+        # ─── Top Performers ──────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("🏆 Top Performers")
+
+        def _top_card(name, poc, metric_label, metric_value, post_link):
+            pc = poc_color(poc)
+            link_html = f'<a href="{post_link}" target="_blank" style="color:#3B82F6; font-size:0.78em; text-decoration:none;">View post ↗</a>' if post_link else ""
+            return (
+                f'<div style="background:#FAFBFC; border-radius:10px; padding:12px 14px; margin-bottom:8px; border-left:4px solid {pc};">'
+                f'<div style="font-weight:600; color:#1F2937; font-size:0.95em;">{name or "(no name)"}</div>'
+                f'<div style="display:flex; align-items:center; gap:6px; font-size:0.78em; color:#6B7280; margin-top:2px;">'
+                f'<span style="width:7px; height:7px; border-radius:50%; background:{pc}; display:inline-block;"></span>{poc}</div>'
+                f'<div style="margin-top:6px; font-size:1.2em; font-weight:700; color:#1F2937;">{metric_value}</div>'
+                f'<div style="font-size:0.72em; color:#9CA3AF; text-transform:uppercase; letter-spacing:0.03em;">{metric_label}</div>'
+                f'<div style="margin-top:4px;">{link_html}</div>'
+                f'</div>'
+            )
+
+        tp_col1, tp_col2, tp_col3 = st.columns(3)
+        # Top 3 by ER vs Baseline
+        with tp_col1:
+            st.markdown("**🎯 By ER vs Baseline**")
+            st.caption("Highest content resonance")
+            top_er = df_rep.dropna(subset=["_er_uplift"]).sort_values("_er_uplift", ascending=False).head(3)
+            if top_er.empty:
+                st.info("No ER data yet.")
+            else:
+                for _, r in top_er.iterrows():
+                    st.markdown(_top_card(
+                        r.get("Name", ""), (r.get("POC") or "").strip(),
+                        "ER vs Baseline", f"{r['_er_uplift']:+.1f}%",
+                        (r.get("Post Link") or "").strip(),
+                    ), unsafe_allow_html=True)
+        # Top 3 by 24hr Views
+        with tp_col2:
+            st.markdown("**👁️ By 24hr Views**")
+            st.caption("Highest absolute reach")
+            top_v = df_rep.dropna(subset=["_views_24hr_num"]).sort_values("_views_24hr_num", ascending=False).head(3)
+            if top_v.empty:
+                st.info("No views data yet.")
+            else:
+                for _, r in top_v.iterrows():
+                    st.markdown(_top_card(
+                        r.get("Name", ""), (r.get("POC") or "").strip(),
+                        "24hr Views", f"{int(r['_views_24hr_num']):,}",
+                        (r.get("Post Link") or "").strip(),
+                    ), unsafe_allow_html=True)
+        # Top 3 by CPM (lowest first)
+        with tp_col3:
+            st.markdown("**💰 By CPM (lowest)**")
+            st.caption("Most cost-efficient reach")
+            top_cpm = df_rep.dropna(subset=["_cpm"]).sort_values("_cpm", ascending=True).head(3)
+            if top_cpm.empty:
+                st.info("No CPM data yet.")
+            else:
+                for _, r in top_cpm.iterrows():
+                    st.markdown(_top_card(
+                        r.get("Name", ""), (r.get("POC") or "").strip(),
+                        "CPM", f"${r['_cpm']:.2f}",
+                        (r.get("Post Link") or "").strip(),
+                    ), unsafe_allow_html=True)
+
+        # ─── Segment Analysis Helper ─────────────────────────────────
+        def _segment_stats(df, by_col, label=None):
+            """Aggregate per-segment metrics. Returns DataFrame sorted by Avg CPM."""
+            if by_col not in df.columns:
+                return pd.DataFrame()
+            d = df.copy()
+            d[by_col] = d[by_col].astype(str).str.strip()
+            d = d[d[by_col] != ""]
+            if d.empty:
+                return pd.DataFrame()
+            g = d.groupby(by_col).agg(
+                n=("Name", "count"),
+                avg_cpm=("_cpm", "mean"),
+                avg_cost_per_signup=("_cost_per_signup", "mean"),
+                avg_er_uplift=("_er_uplift", "mean"),
+                avg_views=("_views_24hr_num", "mean"),
+            ).reset_index()
+            g = g.sort_values("avg_cpm", ascending=True, na_position="last")
+            return g
+
+        def _segment_display(seg_df, label):
+            """Render a segment table with nice formatting + bar chart."""
+            if seg_df.empty:
+                st.info(f"No data for {label} segmentation.")
+                return
+            disp = seg_df.copy()
+            disp.columns = [label, "n", "Avg CPM ($)", "Avg Cost/Signup ($)", "Avg ER uplift (%)", "Avg Views"]
+            # Formatting
+            disp["Avg CPM ($)"] = disp["Avg CPM ($)"].apply(lambda x: f"${x:.2f}" if pd.notna(x) else "—")
+            disp["Avg Cost/Signup ($)"] = disp["Avg Cost/Signup ($)"].apply(lambda x: f"${x:.2f}" if pd.notna(x) else "—")
+            disp["Avg ER uplift (%)"] = disp["Avg ER uplift (%)"].apply(lambda x: f"{x:+.1f}%" if pd.notna(x) else "—")
+            disp["Avg Views"] = disp["Avg Views"].apply(lambda x: f"{int(x):,}" if pd.notna(x) else "—")
+            left, right = st.columns([1, 1])
+            with left:
+                # Chart: show Avg ER uplift
+                import plotly.graph_objects as go
+                plot_df = seg_df.dropna(subset=["avg_er_uplift"])
+                if not plot_df.empty:
+                    fig = go.Figure(data=[go.Bar(
+                        x=plot_df[seg_df.columns[0]],
+                        y=plot_df["avg_er_uplift"],
+                        marker_color=["#63E6BE" if v >= 0 else "#FF6B6B" for v in plot_df["avg_er_uplift"]],
+                        text=[f"{v:+.1f}%" for v in plot_df["avg_er_uplift"]],
+                        textposition="outside",
+                    )])
+                    fig.update_layout(
+                        title=dict(text=f"Avg ER uplift by {label}", font=dict(size=12)),
+                        margin=dict(t=36, b=40, l=10, r=10),
+                        height=260,
+                        font=dict(family="DM Sans, Inter, sans-serif"),
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        yaxis_title="",
+                        xaxis_title="",
+                        showlegend=False,
+                    )
+                    fig.update_xaxes(tickangle=-20)
+                    fig.update_yaxes(gridcolor="#EDEDED", ticksuffix="%")
+                    st.plotly_chart(fig, use_container_width=True, key=f"rep_{label}_chart")
+            with right:
+                st.dataframe(disp, use_container_width=True, hide_index=True)
+
+        # ─── Segment Analysis — 4 dimensions ──────────────────────────
+        st.markdown("---")
+        st.subheader("📐 Segment Performance Analysis")
+
+        st.markdown("**Followers Bucket**")
+        fol_stats = _segment_stats(df_rep, "_follower_bucket")
+        _segment_display(fol_stats, "Followers")
+
+        st.markdown("**Content Type (Hook)**")
+        ct_stats = _segment_stats(df_rep, "Content Type")
+        _segment_display(ct_stats, "Content Type")
+
+        st.markdown("**Type**")
+        type_stats = _segment_stats(df_rep, "Type")
+        _segment_display(type_stats, "Type")
+
+        st.markdown("**Seniority**")
+        sen_stats = _segment_stats(df_rep, "Senority")
+        _segment_display(sen_stats, "Seniority")
+
+        # ─── Best Archetype ──────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("🏅 Best Archetype")
+
+        def _best_segment(seg_df, metric="avg_er_uplift", ascending=False):
+            """Pick the segment with the best value for a given metric."""
+            if seg_df.empty:
+                return None
+            d = seg_df.dropna(subset=[metric])
+            if d.empty:
+                return None
+            d = d.sort_values(metric, ascending=ascending)
+            return d.iloc[0]
+
+        best_fol = _best_segment(fol_stats)
+        best_ct = _best_segment(ct_stats)
+        best_type = _best_segment(type_stats)
+        best_sen = _best_segment(sen_stats)
+
+        archetype_parts = []
+        if best_fol is not None: archetype_parts.append(f"**{best_fol['_follower_bucket']}**")
+        if best_ct is not None: archetype_parts.append(f"**{best_ct['Content Type']}**")
+        if best_type is not None: archetype_parts.append(f"**{best_type['Type']}**")
+        if best_sen is not None: archetype_parts.append(f"**{best_sen['Senority']}** seniority")
+
+        if archetype_parts:
+            # Compute average metrics across best archetype combos (just use best_ct as proxy — more robust than cross-filter)
+            proxy = best_ct if best_ct is not None else (best_fol if best_fol is not None else best_type)
+            chars = []
+            if pd.notna(proxy.get("avg_cpm")): chars.append(f"avg CPM ${proxy['avg_cpm']:.2f}")
+            if pd.notna(proxy.get("avg_er_uplift")): chars.append(f"avg ER uplift {proxy['avg_er_uplift']:+.1f}%")
+            if pd.notna(proxy.get("avg_cost_per_signup")): chars.append(f"avg Cost/Signup ${proxy['avg_cost_per_signup']:.2f}")
+            st.markdown(
+                f'<div style="background:#F0F9FF; border:1px solid #BAE6FD; border-radius:8px; padding:16px 20px;">'
+                f'<div style="font-weight:700; color:#0C4A6E; margin-bottom:6px;">Based on this campaign, the best-performing archetype is:</div>'
+                f'<div style="font-size:1.05em; color:#1F2937; margin-bottom:8px;">{" · ".join(archetype_parts)}</div>'
+                f'<div style="font-size:0.88em; color:#6B7280;">Characteristics (from best Content Type segment): {" · ".join(chars) if chars else "—"}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.info("Not enough data to compute best archetype.")
+
+        # ─── Auto-Generated Insights ─────────────────────────────────
+        st.markdown("---")
+        st.subheader("💡 Key Takeaways")
+
+        insights = []
+        overall_cpm = (r_total_cost / r_total_views * 1000) if r_total_cost and r_total_views else None
+        overall_cps = (r_total_cost / r_total_signups) if r_total_cost and r_total_signups else None
+
+        def _pct_diff(a, b):
+            if a is None or b is None or b == 0:
+                return None
+            return (a / b - 1) * 100
+
+        # 1. Best follower bucket
+        if best_fol is not None and overall_cpm and pd.notna(best_fol.get("avg_cpm")):
+            diff = _pct_diff(best_fol["avg_cpm"], overall_cpm)
+            if diff is not None:
+                insights.append(
+                    f"**{best_fol['_follower_bucket']}** influencers delivered the best CPM at "
+                    f"${best_fol['avg_cpm']:.2f}, {abs(diff):.0f}% "
+                    f"{'below' if diff < 0 else 'above'} the overall average of ${overall_cpm:.2f}."
+                )
+        # 2. Best content type
+        if best_ct is not None and pd.notna(best_ct.get("avg_er_uplift")):
+            insights.append(
+                f'"**{best_ct["Content Type"]}**" content had the highest ER uplift: '
+                f'{best_ct["avg_er_uplift"]:+.1f}% average vs baseline (n={int(best_ct["n"])}).'
+            )
+        # 3. Best type
+        if best_type is not None and pd.notna(best_type.get("avg_cost_per_signup")) and overall_cps:
+            diff = _pct_diff(best_type["avg_cost_per_signup"], overall_cps)
+            if diff is not None:
+                insights.append(
+                    f"**{best_type['Type']}** influencers had the lowest Cost/Signup at "
+                    f"${best_type['avg_cost_per_signup']:.2f} — {abs(diff):.0f}% "
+                    f"{'below' if diff < 0 else 'above'} the overall ${overall_cps:.2f}."
+                )
+        # 4. Best seniority
+        if best_sen is not None and pd.notna(best_sen.get("avg_er_uplift")):
+            insights.append(
+                f"**{best_sen['Senority']}**-level influencers showed {best_sen['avg_er_uplift']:+.1f}% "
+                f"average ER uplift (n={int(best_sen['n'])})."
+            )
+        # 5. Recommendation
+        rec_parts = []
+        if best_fol is not None: rec_parts.append(best_fol["_follower_bucket"])
+        if best_ct is not None: rec_parts.append(f'"{best_ct["Content Type"]}"')
+        if rec_parts:
+            insights.append(
+                f"**Recommendation:** prioritize {' + '.join(rec_parts)} combinations "
+                f"for next campaign wave."
+            )
+
+        if insights:
+            for i, t in enumerate(insights, 1):
+                st.markdown(f"{i}. {t}")
+        else:
+            st.info("Not enough data for insights yet — fill in more campaign results.")
+
+        # ─── CSV Export ──────────────────────────────────────────────
+        st.markdown("---")
+        st.subheader("📥 Export")
+
+        # Build consolidated CSV
+        export_lines = []
+        export_lines.append("# Campaign Report — Per-Influencer Data")
+        export_lines.append("")
+        indiv = df_rep.copy()
+        indiv["Views vs Avg %"] = indiv.apply(
+            lambda r: round((r["_views_24hr_num"] / r["_avg_impressions_num"] - 1) * 100, 1)
+            if pd.notna(r.get("_views_24hr_num")) and pd.notna(r.get("_avg_impressions_num")) and r["_avg_impressions_num"] > 0 else None,
+            axis=1,
+        )
+        indiv["ER vs Baseline %"] = indiv["_er_uplift"].round(1)
+        indiv["CPM ($)"] = indiv["_cpm"].round(2)
+        indiv["Cost/Signup ($)"] = indiv["_cost_per_signup"].round(2)
+        indiv_cols = ["Name", "POC", "Post Link", "Content Type", "Type", "Senority", "Job Function",
+                      "followers", "Country", "Price（$)", "24hr Views", "Signups",
+                      "Post ER", "Baseline ER", "Views vs Avg %", "ER vs Baseline %",
+                      "CPM ($)", "Cost/Signup ($)", "Post Date"]
+        indiv_cols = [c for c in indiv_cols if c in indiv.columns]
+        export_lines.append(indiv[indiv_cols].to_csv(index=False))
+        export_lines.append("")
+
+        # Segment aggregations
+        for label, sdf in [
+            ("Followers Bucket", fol_stats),
+            ("Content Type", ct_stats),
+            ("Type", type_stats),
+            ("Seniority", sen_stats),
+        ]:
+            if sdf.empty:
+                continue
+            export_lines.append(f"# Segment: {label}")
+            export_lines.append("")
+            export_lines.append(sdf.round(2).to_csv(index=False))
+            export_lines.append("")
+
+        full_csv = "\n".join(export_lines)
+        st.download_button(
+            "\U0001f4e5 Download Full Report (CSV)", data=full_csv,
+            file_name=f"report_{selected_tag_str.replace(' ', '_')}.csv", mime="text/csv",
+            use_container_width=True,
+        )
