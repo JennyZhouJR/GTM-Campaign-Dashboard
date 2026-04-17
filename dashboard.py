@@ -341,6 +341,11 @@ def show_editable_table(df_view, display_cols, editable_cols, key_prefix):
                         if row_data.empty:
                             continue
                         row_data = row_data.iloc[0]
+                        # ENFORCE: only send if connected Gmail matches this row's POC
+                        row_poc = (row_data.get("POC", "") or "").strip()
+                        if row_poc != sender_name:
+                            st.warning(f"⚠️ Payment saved for {row_data.get('Name', '?')} but email NOT sent — this row's POC is '{row_poc}' but you're connected as '{sender_name}'. Connect as {row_poc}@jobright.ai to send.")
+                            continue
                         to_email = (row_data.get("Contact", "") or "").strip()
                         name = (row_data.get("Name", "") or "").strip()
                         price = (row_data.get("Price（$)", "") or "").strip()
@@ -874,19 +879,25 @@ elif nav == "Pipeline":
                             st.warning("Enter both email and App Password.")
             else:
                 gmail_email = st.session_state["gmail_email"]
-                st.caption(f"✅ Connected as **{gmail_email}**")
+                # Extract POC name from Gmail address (jenny@jobright.ai → "Jenny")
+                connected_poc = gmail_email.split("@")[0].capitalize()
+                dc1, dc2 = st.columns([3, 1])
+                dc1.caption(f"✅ Connected as **{gmail_email}** — will send as POC **{connected_poc}**")
+                if dc2.button("🔌 Disconnect", key="gmail_disconnect"):
+                    st.session_state["gmail_connected"] = False
+                    st.session_state.pop("gmail_email", None)
+                    st.session_state.pop("gmail_password", None)
+                    st.rerun()
 
-                # Send outreach section — uses df_all, not affected by Campaign Tag filter
+                # Send outreach section — STRICTLY filtered to connected POC's rows only
                 df_unsent = df_all[df_all["Status"].str.strip() == ""]
                 df_unsent = df_unsent[df_unsent["Contact"].str.strip() != ""]
+                # ENFORCE: only show rows where POC matches connected Gmail
+                df_unsent = df_unsent[df_unsent["POC"].str.strip() == connected_poc]
 
                 if not df_unsent.empty:
-                    with st.expander(f"📤 Send Outreach ({len(df_unsent)} people with no status & valid email)", expanded=False):
-                        # POC filter
-                        poc_options = sorted(set(df_unsent["POC"].dropna().unique()) - {""})
-                        send_poc_filter = st.multiselect("Filter by POC", poc_options, key="send_poc_filter")
-                        if send_poc_filter:
-                            df_unsent = df_unsent[df_unsent["POC"].isin(send_poc_filter)]
+                    with st.expander(f"📤 Send Outreach ({len(df_unsent)} {connected_poc}'s unsent people)", expanded=False):
+                        st.caption(f"🔒 Only {connected_poc}'s rows shown. Switch Gmail to send as another POC.")
 
                         # Show candidates
                         send_display = df_unsent[["Name", "Contact", "POC"]].copy()
@@ -967,10 +978,13 @@ elif nav == "Pipeline":
 
                 # Follow-up section
                 df_contacted = df_filtered[df_filtered["Status"] == "Contacted"].copy()
+                # ENFORCE: only show rows where POC matches connected Gmail
+                df_contacted = df_contacted[df_contacted["POC"].str.strip() == connected_poc]
                 if "Email Message-ID" in df_contacted.columns and "Last Email Sent" in df_contacted.columns:
                     df_followable = df_contacted[df_contacted["Email Message-ID"].str.strip() != ""]
                     if not df_followable.empty:
-                        with st.expander(f"🔄 Follow-Ups ({len(df_followable)} contacted, awaiting reply)", expanded=False):
+                        with st.expander(f"🔄 Follow-Ups ({len(df_followable)} of {connected_poc}'s people awaiting reply)", expanded=False):
+                            st.caption(f"🔒 Only {connected_poc}'s rows shown.")
 
                             from dashboard_utils.email_client import check_reply, send_followup as send_fu
 
