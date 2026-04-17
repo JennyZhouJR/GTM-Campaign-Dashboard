@@ -1363,11 +1363,16 @@ elif nav == "Payment & Performance":
         st.markdown("---")
         st.subheader("Performance Ranking")
         _perf_cols = ["Name", "POC", "Post Link", "Content Type", "Type",
-                      "Senority", "Job Function", "_price_num", "_views_24hr_num", "_signups_num"]
+                      "Senority", "Job Function", "_price_num", "_views_24hr_num", "_signups_num",
+                      "_avg_impressions_num", "_post_er_num", "_baseline_er_num"]
         _perf_available = [c for c in _perf_cols if c in df_pay.columns]
         perf = df_pay[_perf_available].copy()
-        perf = perf.rename(columns={"_price_num": "Cost ($)", "_views_24hr_num": "24hr Views",
-                                     "_signups_num": "Signups", "Senority": "Seniority"})
+        perf = perf.rename(columns={
+            "_price_num": "Cost ($)", "_views_24hr_num": "24hr Views",
+            "_signups_num": "Signups", "Senority": "Seniority",
+            "_avg_impressions_num": "Avg Views", "_post_er_num": "Post ER",
+            "_baseline_er_num": "Baseline ER",
+        })
         # Compute CPM and Cost/Signup
         perf["CPM ($)"] = perf.apply(
             lambda r: round(r["Cost ($)"] / r["24hr Views"] * 1000, 2)
@@ -1375,6 +1380,21 @@ elif nav == "Payment & Performance":
         perf["Cost/Signup ($)"] = perf.apply(
             lambda r: round(r["Cost ($)"] / r["Signups"], 2)
             if pd.notna(r.get("Cost ($)")) and pd.notna(r.get("Signups")) and r["Signups"] > 0 else None, axis=1)
+        # Compute Views vs Avg (%) — this post vs their historical avg impressions
+        def _views_vs_avg(r):
+            v, a = r.get("24hr Views"), r.get("Avg Views")
+            if pd.notna(v) and pd.notna(a) and a > 0:
+                return round((v / a - 1) * 100, 1)
+            return None
+        perf["Views vs Avg %"] = perf.apply(_views_vs_avg, axis=1) if "Avg Views" in perf.columns else None
+        # Compute ER vs Baseline (%)
+        def _er_vs_baseline(r):
+            p, b = r.get("Post ER"), r.get("Baseline ER")
+            if pd.notna(p) and pd.notna(b) and b > 0:
+                return round((p / b - 1) * 100, 1)
+            return None
+        perf["ER vs Baseline %"] = perf.apply(_er_vs_baseline, axis=1) if "Post ER" in perf.columns else None
+
         # Only show rows with at least some data
         perf_display = perf.dropna(subset=["Cost ($)"])
         if not perf_display.empty:
@@ -1386,12 +1406,20 @@ elif nav == "Payment & Performance":
             else:
                 perf_sorted = perf_display.sort_values("CPM ($)", ascending=True, na_position="last")
             _perf_display_order = ["Name", "POC", "Content Type", "Type", "Seniority", "Job Function",
-                                   "Cost ($)", "24hr Views", "Signups", "CPM ($)", "Cost/Signup ($)", "Post Link"]
+                                   "Cost ($)", "24hr Views", "Avg Views", "Views vs Avg %",
+                                   "Post ER", "Baseline ER", "ER vs Baseline %",
+                                   "Signups", "CPM ($)", "Cost/Signup ($)", "Post Link"]
             _perf_display_order = [c for c in _perf_display_order if c in perf_sorted.columns]
             st.dataframe(
                 perf_sorted[_perf_display_order],
                 use_container_width=True, hide_index=True,
-                column_config={"Post Link": st.column_config.LinkColumn("Post Link")},
+                column_config={
+                    "Post Link": st.column_config.LinkColumn("Post Link"),
+                    "Views vs Avg %": st.column_config.NumberColumn("Views vs Avg %", format="%+.1f%%"),
+                    "ER vs Baseline %": st.column_config.NumberColumn("ER vs Baseline %", format="%+.1f%%"),
+                    "Post ER": st.column_config.NumberColumn("Post ER", format="%.2f%%"),
+                    "Baseline ER": st.column_config.NumberColumn("Baseline ER", format="%.2f%%"),
+                },
             )
         else:
             st.info("Performance data will appear after cost and views/signups are entered.")

@@ -31,6 +31,8 @@ NEW_HEADERS = {
     36: "Contract Signed Date",  # AJ
     37: "Email Opened",        # AK
     38: "Open Count",          # AL
+    39: "Post ER",             # AM
+    40: "Baseline ER",         # AN
 }
 
 # Column letters for indices 0-30
@@ -87,7 +89,7 @@ def _retry(fn, retries=3):
 def ensure_new_columns(ws):
     """Add AB-AE headers if they don't exist yet."""
     row1 = ws.row_values(1)
-    if len(row1) >= 38:
+    if len(row1) >= 40:
         return  # already have all columns
     cells = []
     for col_idx, header in NEW_HEADERS.items():
@@ -107,7 +109,7 @@ def load_dataframe(ws) -> pd.DataFrame:
     # Hardcode A1 header — Sheet sometimes has it blank, do NOT change this
     headers[0] = "Date of Contact"
     # Pad rows that are shorter than the header row
-    n_cols = max(len(headers), 38)  # at least 38 cols (A-AL)
+    n_cols = max(len(headers), 40)  # at least 40 cols (A-AN)
     padded_headers = headers + [NEW_HEADERS.get(i + 1, f"Col_{i}") for i in range(len(headers), n_cols)]
 
     rows = []

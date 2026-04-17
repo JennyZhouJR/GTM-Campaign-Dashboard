@@ -45,6 +45,8 @@ COL = {
     "contract_signed_date": 35,  # AJ (contract signed date)
     "email_opened": 36,      # AK (email opened tracking)
     "open_count": 37,        # AL (email open count)
+    "post_er": 38,           # AM (campaign post ER)
+    "baseline_er": 39,       # AN (baseline ER from recent reels)
 }
 
 # Reverse: index -> column name
@@ -64,6 +66,7 @@ HEADER_NAMES = [
     "Retro Notes", "Email Message-ID", "Last Email Sent", "Follow-Up Count",
     "Stage Start Date", "Contract Signed Date",
     "Email Opened", "Open Count",
+    "Post ER", "Baseline ER",
 ]
 
 # ─── Dropdown options ─────────────────────────────────────────────────────────
@@ -208,6 +211,8 @@ def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df["_views_24hr_num"] = df.get("24hr Views", pd.Series(dtype=str)).apply(cast_numeric)
     df["_signups_num"] = df.get("Link Signups", pd.Series(dtype=str)).apply(cast_numeric)
     df["_post_date_parsed"] = df.get("Post Date", pd.Series(dtype=str)).apply(parse_date)
+    df["_post_er_num"] = df.get("Post ER", pd.Series(dtype=str)).apply(cast_numeric)
+    df["_baseline_er_num"] = df.get("Baseline ER", pd.Series(dtype=str)).apply(cast_numeric)
     df["_stage_start_parsed"] = df.get("Stage Start Date", pd.Series(dtype=str)).apply(parse_date)
     # Days in current stage (business days)
     from datetime import date as _date
