@@ -316,13 +316,18 @@ def show_editable_table(df_view, display_cols, editable_cols, key_prefix):
         if updates:
             try:
                 batch_update_cells(st.session_state["ws"], updates)
-                # Also update the in-memory DataFrame so changes show immediately
+                # Update in-memory DataFrame so changes show immediately
                 if "df" in st.session_state:
                     df_mem = st.session_state["df"]
                     for s_row, col_name, val in edit_details:
                         mask = df_mem["_sheet_row"] == s_row
                         if mask.any():
                             df_mem.loc[mask, col_name] = val
+                    # Re-run prepare_dataframe so parsed numeric/date columns
+                    # (e.g. _views_24hr_num, _price_num, _post_er_num) stay in sync
+                    # with the edited string values — otherwise CPM / ER / vs-baseline
+                    # computations show stale data until user manually refreshes.
+                    st.session_state["df"] = prepare_dataframe(df_mem)
                 st.toast(f"Saved {len(updates)} change(s)")
             except Exception as e:
                 st.error(f"Save failed: {e}")
