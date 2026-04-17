@@ -1626,67 +1626,90 @@ elif nav == "Report":
             g = g.sort_values("avg_cpm", ascending=True, na_position="last")
             return g
 
-        def _segment_display(seg_df, label):
-            """Render a segment table with nice formatting + bar chart."""
+        def _segment_display(seg_df, label, first_col_name=None):
+            """Render a segment table — clean, scannable, best row highlighted.
+
+            Sorted by ER uplift descending (best first). Best row gets 🥇 + green bg.
+            """
             if seg_df.empty:
                 st.info(f"No data for {label} segmentation.")
                 return
-            disp = seg_df.copy()
-            disp.columns = [label, "n", "Avg CPM ($)", "Avg Cost/Signup ($)", "Avg ER uplift (%)", "Avg Views"]
-            # Formatting
-            disp["Avg CPM ($)"] = disp["Avg CPM ($)"].apply(lambda x: f"${x:.2f}" if pd.notna(x) else "—")
-            disp["Avg Cost/Signup ($)"] = disp["Avg Cost/Signup ($)"].apply(lambda x: f"${x:.2f}" if pd.notna(x) else "—")
-            disp["Avg ER uplift (%)"] = disp["Avg ER uplift (%)"].apply(lambda x: f"{x:+.1f}%" if pd.notna(x) else "—")
-            disp["Avg Views"] = disp["Avg Views"].apply(lambda x: f"{int(x):,}" if pd.notna(x) else "—")
-            left, right = st.columns([1, 1])
-            with left:
-                # Chart: show Avg ER uplift
-                import plotly.graph_objects as go
-                plot_df = seg_df.dropna(subset=["avg_er_uplift"])
-                if not plot_df.empty:
-                    fig = go.Figure(data=[go.Bar(
-                        x=plot_df[seg_df.columns[0]],
-                        y=plot_df["avg_er_uplift"],
-                        marker_color=["#63E6BE" if v >= 0 else "#FF6B6B" for v in plot_df["avg_er_uplift"]],
-                        text=[f"{v:+.1f}%" for v in plot_df["avg_er_uplift"]],
-                        textposition="outside",
-                    )])
-                    fig.update_layout(
-                        title=dict(text=f"Avg ER uplift by {label}", font=dict(size=12)),
-                        margin=dict(t=36, b=40, l=10, r=10),
-                        height=260,
-                        font=dict(family="DM Sans, Inter, sans-serif"),
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        yaxis_title="",
-                        xaxis_title="",
-                        showlegend=False,
-                    )
-                    fig.update_xaxes(tickangle=-20)
-                    fig.update_yaxes(gridcolor="#EDEDED", ticksuffix="%")
-                    st.plotly_chart(fig, use_container_width=True, key=f"rep_{label}_chart")
-            with right:
-                st.dataframe(disp, use_container_width=True, hide_index=True)
+            # Sort by ER uplift (descending — highest first). Fall back to CPM asc.
+            if seg_df["avg_er_uplift"].notna().any():
+                sorted_df = seg_df.sort_values("avg_er_uplift", ascending=False, na_position="last")
+            else:
+                sorted_df = seg_df.sort_values("avg_cpm", ascending=True, na_position="last")
+
+            seg_col = first_col_name or seg_df.columns[0]
+            # Find index of best row (first row with non-NaN ER uplift, or first row overall)
+            best_idx = None
+            if sorted_df["avg_er_uplift"].notna().any():
+                best_idx = sorted_df.index[sorted_df["avg_er_uplift"].notna()][0]
+
+            # Build HTML table
+            html = (
+                '<table style="width:100%; border-collapse:collapse; font-size:0.88em; margin-bottom:8px;">'
+                '<thead><tr style="background:#F3F4F6; color:#374151;">'
+                f'<th style="padding:10px 12px; text-align:left; border-bottom:2px solid #E5E7EB;">{label}</th>'
+                '<th style="padding:10px 12px; text-align:center; border-bottom:2px solid #E5E7EB;">#</th>'
+                '<th style="padding:10px 12px; text-align:right; border-bottom:2px solid #E5E7EB;">Avg CPM</th>'
+                '<th style="padding:10px 12px; text-align:right; border-bottom:2px solid #E5E7EB;">Avg Cost/Signup</th>'
+                '<th style="padding:10px 12px; text-align:right; border-bottom:2px solid #E5E7EB;">ER vs Baseline</th>'
+                '<th style="padding:10px 12px; text-align:right; border-bottom:2px solid #E5E7EB;">Avg Views</th>'
+                '</tr></thead><tbody>'
+            )
+
+            for i, (_, row) in enumerate(sorted_df.iterrows()):
+                is_best = (row.name == best_idx)
+                bg = "#ECFDF5" if is_best else ("#FAFBFC" if i % 2 else "#FFFFFF")
+                crown = "🥇 " if is_best else ""
+                name = f'{crown}{row[seg_col]}'
+
+                # Format each metric
+                n_val = int(row["n"]) if pd.notna(row.get("n")) else 0
+                cpm = f"${row['avg_cpm']:.2f}" if pd.notna(row.get("avg_cpm")) else "—"
+                cps = f"${row['avg_cost_per_signup']:.2f}" if pd.notna(row.get("avg_cost_per_signup")) else "—"
+                er = row.get("avg_er_uplift")
+                if pd.isna(er):
+                    er_html = '<span style="color:#9CA3AF;">—</span>'
+                else:
+                    color = "#059669" if er >= 0 else "#DC2626"
+                    er_html = f'<span style="color:{color}; font-weight:600;">{er:+.1f}%</span>'
+                views = f"{int(row['avg_views']):,}" if pd.notna(row.get("avg_views")) else "—"
+
+                html += (
+                    f'<tr style="background:{bg}; border-bottom:1px solid #F3F4F6;">'
+                    f'<td style="padding:9px 12px; color:#1F2937; font-weight:{("600" if is_best else "500")};">{name}</td>'
+                    f'<td style="padding:9px 12px; text-align:center; color:#6B7280;">{n_val}</td>'
+                    f'<td style="padding:9px 12px; text-align:right; color:#374151;">{cpm}</td>'
+                    f'<td style="padding:9px 12px; text-align:right; color:#374151;">{cps}</td>'
+                    f'<td style="padding:9px 12px; text-align:right;">{er_html}</td>'
+                    f'<td style="padding:9px 12px; text-align:right; color:#6B7280;">{views}</td>'
+                    f'</tr>'
+                )
+            html += '</tbody></table>'
+            st.markdown(html, unsafe_allow_html=True)
 
         # ─── Segment Analysis — 4 dimensions ──────────────────────────
         st.markdown("---")
-        st.subheader("📐 Segment Performance Analysis")
+        st.subheader("📐 What Worked Best")
+        st.caption("Each table compares how different segments performed. 🥇 marks the best ER uplift in each group. Sorted by ER uplift (content resonance).")
 
-        st.markdown("**Followers Bucket**")
+        st.markdown("##### By Followers Size")
         fol_stats = _segment_stats(df_rep, "_follower_bucket")
-        _segment_display(fol_stats, "Followers")
+        _segment_display(fol_stats, "Followers", first_col_name="_follower_bucket")
 
-        st.markdown("**Content Type (Hook)**")
+        st.markdown("##### By Content Hook")
         ct_stats = _segment_stats(df_rep, "Content Type")
-        _segment_display(ct_stats, "Content Type")
+        _segment_display(ct_stats, "Content Type", first_col_name="Content Type")
 
-        st.markdown("**Type**")
+        st.markdown("##### By Influencer Type")
         type_stats = _segment_stats(df_rep, "Type")
-        _segment_display(type_stats, "Type")
+        _segment_display(type_stats, "Type", first_col_name="Type")
 
-        st.markdown("**Seniority**")
+        st.markdown("##### By Seniority")
         sen_stats = _segment_stats(df_rep, "Senority")
-        _segment_display(sen_stats, "Seniority")
+        _segment_display(sen_stats, "Seniority", first_col_name="Senority")
 
         # ─── Best Archetype ──────────────────────────────────────────
         st.markdown("---")
