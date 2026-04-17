@@ -91,10 +91,13 @@ def extract_shortcode_from_url(url: str) -> str:
 
 
 def compute_er(likes, comments, views) -> float:
-    """Compute engagement rate as a percentage: (likes + comments) / views * 100."""
+    """Compute engagement rate as a percentage: (likes + comments) / views * 100.
+
+    Instagram API sometimes returns -1 for hidden likes/comments; clamp those to 0.
+    """
     try:
-        likes = float(likes or 0)
-        comments = float(comments or 0)
+        likes = max(0, float(likes or 0))
+        comments = max(0, float(comments or 0))
         views = float(views or 0)
         if views <= 0:
             return None
