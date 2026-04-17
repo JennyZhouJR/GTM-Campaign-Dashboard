@@ -1469,8 +1469,15 @@ elif nav == "Payment & Performance":
         # Export
         st.markdown("---")
         csv = df_pay.drop(columns=[c for c in df_pay.columns if c.startswith("_")]).to_csv(index=False)
+        # Build filename — guard against start_date/end_date being undefined when date filter is off
+        _fname_parts = ["campaign"]
+        if use_date_filter:
+            _fname_parts.append(f"{start_date}_{end_date}")
+        if selected_tag != "(All)":
+            _fname_parts.append(selected_tag.lower())
+        _csv_filename = "_".join(_fname_parts) + ".csv"
         st.download_button("\U0001f4e5 Export Campaign Report (CSV)", data=csv,
-                           file_name=f"campaign_{start_date}_{end_date}.csv", mime="text/csv",
+                           file_name=_csv_filename, mime="text/csv",
                            use_container_width=True)
 
 
