@@ -234,9 +234,17 @@ def sync_views(days: int = 3, force: bool = False):
         lambda d: d is not None and cutoff <= d <= latest_scrape_date
     )]
 
-    # Only pick rows with missing 24hr Views unless --force
+    # Only pick rows with any missing derived metric (unless --force).
+    # Previously we only checked 24hr Views — so if scraping succeeded on views
+    # but failed on Post ER or Baseline ER, those rows would never be retried.
+    # Now we re-scrape any row where 24hr Views, Post ER, or Baseline ER is empty.
     if not force:
-        candidates = candidates[candidates["24hr Views"].str.strip() == ""]
+        def _needs_scrape(r):
+            v = (r.get("24hr Views") or "").strip()
+            p = (r.get("Post ER") or "").strip()
+            b = (r.get("Baseline ER") or "").strip()
+            return not (v and p and b)
+        candidates = candidates[candidates.apply(_needs_scrape, axis=1)]
 
     if candidates.empty:
         print(f"✅ No posts to scrape (nothing posted in last {days}d with missing views).")
