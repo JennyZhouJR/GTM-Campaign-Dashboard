@@ -1050,8 +1050,8 @@ elif nav == "Pipeline":
                 _tm3.metric("Unopened", _unopened)
                 _tm4.metric("Open Rate", f"{_open_pct:.0f}%" if _sent_count > 0 else "N/A")
 
-                # ─── POC Breakdown — compare each person's open rate ─────
-                st.markdown("##### 📊 Open Rate by POC")
+                # ─── POC Breakdown — compare each person's open + reply rates ─────
+                st.markdown("##### 📊 Open Rate & Reply Rate by POC")
                 _poc_stats = []
                 for _poc_name in sorted(set(_sent_tracked_all["POC"].dropna().str.strip().unique()) - {""}):
                     _poc_rows = _sent_tracked_all[_sent_tracked_all["POC"].str.strip() == _poc_name]
@@ -1060,6 +1060,9 @@ elif nav == "Pipeline":
                         continue
                     _poc_opened = (_poc_rows["Email Opened"].str.strip().str.lower() == "yes").sum() if "Email Opened" in _poc_rows.columns else 0
                     _poc_rate = (_poc_opened / _poc_sent * 100) if _poc_sent else 0
+                    # Reply count — uses Email Replied column (populated by auto_followup cron)
+                    _poc_replied = (_poc_rows["Email Replied"].str.strip().str.lower() == "yes").sum() if "Email Replied" in _poc_rows.columns else 0
+                    _poc_reply_rate = (_poc_replied / _poc_sent * 100) if _poc_sent else 0
                     # Avg opens per email (count column)
                     _open_counts = _poc_rows["Open Count"].apply(
                         lambda x: int(str(x).strip()) if str(x).strip().isdigit() else 0
@@ -1070,47 +1073,61 @@ elif nav == "Pipeline":
                         "sent": _poc_sent,
                         "opened": _poc_opened,
                         "rate": _poc_rate,
+                        "replied": _poc_replied,
+                        "reply_rate": _poc_reply_rate,
                         "avg_opens": _avg_opens,
                     })
                 # Sort by open rate descending
                 _poc_stats.sort(key=lambda x: x["rate"], reverse=True)
 
                 if _poc_stats:
-                    # Compute overall benchmark for rank indicators
+                    # Compute overall benchmarks
                     _overall_rate = (_opened_count / _sent_count * 100) if _sent_count else 0
+                    _overall_replied = sum(s["replied"] for s in _poc_stats)
+                    _overall_reply_rate = (_overall_replied / _sent_count * 100) if _sent_count else 0
                     _cols = st.columns(len(_poc_stats))
                     for i, _p in enumerate(_poc_stats):
                         with _cols[i]:
                             _pc = poc_color(_p["poc"])
-                            # Rank indicator vs overall benchmark
-                            _diff = _p["rate"] - _overall_rate
-                            if _diff >= 3:
-                                _vs_color, _vs_arrow = "#059669", "↑"
-                            elif _diff <= -3:
-                                _vs_color, _vs_arrow = "#DC2626", "↓"
-                            else:
-                                _vs_color, _vs_arrow = "#9CA3AF", "→"
-                            _vs_label = f"{_vs_arrow} {_diff:+.1f}pp vs team avg"
-                            # Rate color: green ≥70%, amber 50-69%, red <50%
+                            # Open rate color: green ≥70%, amber 50-69%, red <50%
                             if _p["rate"] >= 70: _rate_color = "#059669"
                             elif _p["rate"] >= 50: _rate_color = "#F59E0B"
                             else: _rate_color = "#DC2626"
+                            # Reply rate color: green ≥15%, amber 5-14%, red <5% (industry benchmarks)
+                            if _p["reply_rate"] >= 15: _reply_color = "#059669"
+                            elif _p["reply_rate"] >= 5: _reply_color = "#F59E0B"
+                            else: _reply_color = "#DC2626"
+                            # Vs team arrows
+                            _diff = _p["rate"] - _overall_rate
+                            if _diff >= 3: _vs_color, _vs_arrow = "#059669", "↑"
+                            elif _diff <= -3: _vs_color, _vs_arrow = "#DC2626", "↓"
+                            else: _vs_color, _vs_arrow = "#9CA3AF", "→"
+                            _vs_label = f"{_vs_arrow} {_diff:+.1f}pp vs team"
                             st.markdown(
                                 f'<div style="background:#FAFBFC; border-radius:10px; padding:14px 16px; border-left:4px solid {_pc};">'
                                 f'<div style="display:flex; align-items:center; gap:6px; font-size:0.82em; color:#6B7280; font-weight:600;">'
                                 f'<span style="width:9px; height:9px; border-radius:50%; background:{_pc}; display:inline-block;"></span>'
                                 f'{_p["poc"]}</div>'
-                                f'<div style="font-size:2em; font-weight:700; color:{_rate_color}; margin:6px 0 2px;">{_p["rate"]:.0f}%</div>'
+                                # Open Rate (big)
+                                f'<div style="font-size:1.7em; font-weight:700; color:{_rate_color}; margin:8px 0 0;">{_p["rate"]:.0f}%</div>'
                                 f'<div style="font-size:0.72em; color:#9CA3AF; text-transform:uppercase; letter-spacing:0.03em;">open rate</div>'
-                                f'<div style="margin-top:8px; font-size:0.82em; color:#374151;">{_p["opened"]} / {_p["sent"]} opened</div>'
-                                f'<div style="font-size:0.78em; color:#6B7280;">{_p["avg_opens"]:.1f} avg opens / email</div>'
-                                f'<div style="margin-top:6px; font-size:0.75em; color:{_vs_color}; font-weight:600;">{_vs_label}</div>'
+                                f'<div style="font-size:0.78em; color:#6B7280;">{_p["opened"]} / {_p["sent"]} opened · {_p["avg_opens"]:.1f} avg opens</div>'
+                                # Reply Rate (medium) — divider
+                                f'<div style="border-top:1px solid #E5E7EB; margin:8px 0 6px;"></div>'
+                                f'<div style="font-size:1.3em; font-weight:700; color:{_reply_color};">{_p["reply_rate"]:.0f}%</div>'
+                                f'<div style="font-size:0.72em; color:#9CA3AF; text-transform:uppercase; letter-spacing:0.03em;">reply rate</div>'
+                                f'<div style="font-size:0.78em; color:#6B7280;">{_p["replied"]} / {_p["sent"]} replied</div>'
+                                # Vs team
+                                f'<div style="margin-top:8px; font-size:0.74em; color:{_vs_color}; font-weight:600;">{_vs_label}</div>'
                                 f'</div>',
                                 unsafe_allow_html=True,
                             )
-                    st.caption(f"Team avg: **{_overall_rate:.0f}%** open rate. "
-                               f"≥70% green · 50-69% amber · <50% red. "
-                               f"↑↓ vs team avg (±3pp threshold).")
+                    st.caption(
+                        f"Team avg: **{_overall_rate:.0f}%** open · **{_overall_reply_rate:.0f}%** reply. "
+                        f"Open: ≥70% green · 50-69% amber · <50% red. "
+                        f"Reply: ≥15% green · 5-14% amber · <5% red. "
+                        f"Reply rate counts both recipient replies and manual follow-ups from the sender."
+                    )
 
                 st.markdown("---")
 

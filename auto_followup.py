@@ -180,11 +180,58 @@ def run_followups():
             errors += 1
             print(f"  ❌ {name} — Failed: {e}")
 
-    print(f"\n[{datetime.now()}] Done!")
+    print(f"\n[{datetime.now()}] Done with follow-ups!")
     print(f"  Sent: {sent_count}")
     print(f"  Skipped (replied): {skipped_replied}")
     print(f"  Skipped (max follow-ups): {skipped_maxed}")
     print(f"  Errors: {errors}")
+
+    # ─── Update Email Replied column for ALL tracked rows ──────
+    # Reply rate tracking: for every row with a Message-ID, check if the
+    # thread has been continued (by recipient or us) and write Yes/No
+    # to the Email Replied column. This runs regardless of follow-up eligibility.
+    print(f"\n[{datetime.now()}] Syncing Email Replied status for all tracked rows...")
+    all_tracked = df[df[msg_id_col].str.strip() != ""]
+    replied_updates = 0
+    replied_errors = 0
+    for _, row in all_tracked.iterrows():
+        poc = row[poc_col].strip()
+        msg_id = row[msg_id_col].strip()
+        sheet_row = int(row["_sheet_row"])
+        current_replied = row.get("Email Replied", "").strip() if "Email Replied" in row else ""
+
+        # Skip if already marked Yes (replies don't become "No" — permanent signal)
+        if current_replied.lower() == "yes":
+            continue
+
+        poc_account = POC_ACCOUNTS.get(poc)
+        if not poc_account:
+            continue
+        app_password = os.environ.get(poc_account["env_key"])
+        if not app_password:
+            continue
+
+        try:
+            rs = check_reply_status(poc_account["email"], app_password, msg_id)
+            if rs == REPLY_YES and current_replied.lower() != "yes":
+                ws.update_cell(sheet_row, COL["email_replied"] + 1, "Yes")
+                replied_updates += 1
+                time.sleep(0.3)  # gentle rate limit for Sheets API
+            elif rs == REPLY_NO and current_replied == "":
+                # Only write "No" if the cell is empty — don't overwrite manual edits
+                ws.update_cell(sheet_row, COL["email_replied"] + 1, "No")
+                replied_updates += 1
+                time.sleep(0.3)
+            # REPLY_UNKNOWN: skip, try tomorrow
+        except Exception as e:
+            replied_errors += 1
+            # Don't spam logs with every error
+            if replied_errors <= 3:
+                print(f"  ⚠️ Reply check failed for row {sheet_row}: {e}")
+
+    print(f"\n[{datetime.now()}] Email Replied sync done!")
+    print(f"  Rows updated: {replied_updates}")
+    print(f"  Errors: {replied_errors}")
 
 
 if __name__ == "__main__":

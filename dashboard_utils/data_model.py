@@ -47,6 +47,7 @@ COL = {
     "open_count": 37,        # AL (email open count)
     "post_er": 38,           # AM (campaign post ER)
     "baseline_er": 39,       # AN (baseline ER from recent reels)
+    "email_replied": 40,     # AO (Yes/No — did recipient reply OR did we manually follow up)
 }
 
 # Reverse: index -> column name
@@ -67,6 +68,7 @@ HEADER_NAMES = [
     "Stage Start Date", "Contract Signed Date",
     "Email Opened", "Open Count",
     "Post ER", "Baseline ER",
+    "Email Replied",
 ]
 
 # ─── Dropdown options ─────────────────────────────────────────────────────────
