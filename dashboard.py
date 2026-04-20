@@ -961,6 +961,62 @@ elif nav == "Pipeline":
         # ─── Email Tracking Panel ────────────────────────────────────────
         if _sent_count > 0:
             with st.expander(f"📊 Email Tracking ({_sent_count} sent{_open_rate_str})", expanded=False):
+                # ── Time range filter (scopes everything below) ──
+                _tr1, _tr2 = st.columns([2, 1])
+                _range_opts = ["Last 7 days", "Last 14 days", "Last 30 days", "All time"]
+                _sel_range = _tr1.selectbox(
+                    "🗓️ Time range",
+                    _range_opts, index=0, key="tracking_range",
+                    help="Defaults to Last 7 days. All time shows historical data including pre-tracking emails (which appear as 'not opened').",
+                )
+                _use_custom = _tr2.checkbox("Custom dates", key="tracking_custom_dates")
+
+                if _use_custom:
+                    _cc1, _cc2 = st.columns(2)
+                    _t_start = _cc1.date_input("From", value=date.today() - timedelta(days=7), key="tracking_start_d")
+                    _t_end = _cc2.date_input("To", value=date.today(), key="tracking_end_d")
+                else:
+                    _t_end = date.today()
+                    if _sel_range == "Last 7 days":
+                        _t_start = _t_end - timedelta(days=7)
+                    elif _sel_range == "Last 14 days":
+                        _t_start = _t_end - timedelta(days=14)
+                    elif _sel_range == "Last 30 days":
+                        _t_start = _t_end - timedelta(days=30)
+                    else:
+                        _t_start = None  # All time
+
+                # Apply time filter to _sent_tracked_all
+                def _parse_last_sent(val):
+                    if not val or not isinstance(val, str):
+                        return None
+                    try:
+                        return datetime.strptime(val.strip(), "%Y-%m-%d %H:%M").date()
+                    except (ValueError, AttributeError):
+                        return None
+
+                if _t_start is not None:
+                    _sent_tracked_all = _sent_tracked_all[
+                        _sent_tracked_all["Last Email Sent"].apply(_parse_last_sent).apply(
+                            lambda d: d is not None and _t_start <= d <= _t_end
+                        )
+                    ]
+                    # Recompute summary stats from filtered data
+                    _sent_count = len(_sent_tracked_all)
+                    _opened_count = (_sent_tracked_all["Email Opened"].str.strip().str.lower() == "yes").sum() if _sent_count > 0 else 0
+                    _open_pct = (_opened_count / _sent_count * 100) if _sent_count else 0
+
+                # Show range summary
+                if _t_start is not None:
+                    st.caption(f"Showing emails sent between **{_t_start.strftime('%m/%d')}** and **{_t_end.strftime('%m/%d')}** — {_sent_count} emails in range.")
+                else:
+                    st.caption(f"Showing all tracked emails — {_sent_count} total (includes pre-pixel history, treat 0%-open entries with skepticism).")
+
+                # If no data in range, show warning and bail
+                if _sent_count == 0:
+                    st.info("No emails in this time range. Try a wider window or 'All time'.")
+                    st.stop() if False else None
+
                 # Summary metrics
                 _unopened = _sent_count - _opened_count
                 _tm1, _tm2, _tm3, _tm4 = st.columns(4)
