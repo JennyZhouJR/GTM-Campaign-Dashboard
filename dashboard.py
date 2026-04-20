@@ -969,6 +969,70 @@ elif nav == "Pipeline":
                 _tm3.metric("Unopened", _unopened)
                 _tm4.metric("Open Rate", f"{_open_pct:.0f}%" if _sent_count > 0 else "N/A")
 
+                # ─── POC Breakdown — compare each person's open rate ─────
+                st.markdown("##### 📊 Open Rate by POC")
+                _poc_stats = []
+                for _poc_name in sorted(set(_sent_tracked_all["POC"].dropna().str.strip().unique()) - {""}):
+                    _poc_rows = _sent_tracked_all[_sent_tracked_all["POC"].str.strip() == _poc_name]
+                    _poc_sent = len(_poc_rows)
+                    if _poc_sent == 0:
+                        continue
+                    _poc_opened = (_poc_rows["Email Opened"].str.strip().str.lower() == "yes").sum() if "Email Opened" in _poc_rows.columns else 0
+                    _poc_rate = (_poc_opened / _poc_sent * 100) if _poc_sent else 0
+                    # Avg opens per email (count column)
+                    _open_counts = _poc_rows["Open Count"].apply(
+                        lambda x: int(str(x).strip()) if str(x).strip().isdigit() else 0
+                    ) if "Open Count" in _poc_rows.columns else pd.Series([0])
+                    _avg_opens = _open_counts.mean() if len(_open_counts) else 0
+                    _poc_stats.append({
+                        "poc": _poc_name,
+                        "sent": _poc_sent,
+                        "opened": _poc_opened,
+                        "rate": _poc_rate,
+                        "avg_opens": _avg_opens,
+                    })
+                # Sort by open rate descending
+                _poc_stats.sort(key=lambda x: x["rate"], reverse=True)
+
+                if _poc_stats:
+                    # Compute overall benchmark for rank indicators
+                    _overall_rate = (_opened_count / _sent_count * 100) if _sent_count else 0
+                    _cols = st.columns(len(_poc_stats))
+                    for i, _p in enumerate(_poc_stats):
+                        with _cols[i]:
+                            _pc = poc_color(_p["poc"])
+                            # Rank indicator vs overall benchmark
+                            _diff = _p["rate"] - _overall_rate
+                            if _diff >= 3:
+                                _vs_color, _vs_arrow = "#059669", "↑"
+                            elif _diff <= -3:
+                                _vs_color, _vs_arrow = "#DC2626", "↓"
+                            else:
+                                _vs_color, _vs_arrow = "#9CA3AF", "→"
+                            _vs_label = f"{_vs_arrow} {_diff:+.1f}pp vs team avg"
+                            # Rate color: green ≥70%, amber 50-69%, red <50%
+                            if _p["rate"] >= 70: _rate_color = "#059669"
+                            elif _p["rate"] >= 50: _rate_color = "#F59E0B"
+                            else: _rate_color = "#DC2626"
+                            st.markdown(
+                                f'<div style="background:#FAFBFC; border-radius:10px; padding:14px 16px; border-left:4px solid {_pc};">'
+                                f'<div style="display:flex; align-items:center; gap:6px; font-size:0.82em; color:#6B7280; font-weight:600;">'
+                                f'<span style="width:9px; height:9px; border-radius:50%; background:{_pc}; display:inline-block;"></span>'
+                                f'{_p["poc"]}</div>'
+                                f'<div style="font-size:2em; font-weight:700; color:{_rate_color}; margin:6px 0 2px;">{_p["rate"]:.0f}%</div>'
+                                f'<div style="font-size:0.72em; color:#9CA3AF; text-transform:uppercase; letter-spacing:0.03em;">open rate</div>'
+                                f'<div style="margin-top:8px; font-size:0.82em; color:#374151;">{_p["opened"]} / {_p["sent"]} opened</div>'
+                                f'<div style="font-size:0.78em; color:#6B7280;">{_p["avg_opens"]:.1f} avg opens / email</div>'
+                                f'<div style="margin-top:6px; font-size:0.75em; color:{_vs_color}; font-weight:600;">{_vs_label}</div>'
+                                f'</div>',
+                                unsafe_allow_html=True,
+                            )
+                    st.caption(f"Team avg: **{_overall_rate:.0f}%** open rate. "
+                               f"≥70% green · 50-69% amber · <50% red. "
+                               f"↑↓ vs team avg (±3pp threshold).")
+
+                st.markdown("---")
+
                 # Filters
                 _tf1, _tf2 = st.columns([2, 1])
                 _poc_opts = sorted(set(_sent_tracked_all["POC"].dropna().str.strip().unique()) - {""})
