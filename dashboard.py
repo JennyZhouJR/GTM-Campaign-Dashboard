@@ -463,6 +463,27 @@ if nav == "Overview":
     if df_by_contact.empty:
         st.info("No influencers found for the selected date range.")
     else:
+        # Filter logic reference (collapsed by default) — helps users understand
+        # which filter each chart in this tab follows.
+        with st.expander("ℹ️ How filters work on this tab", expanded=False):
+            st.markdown("""
+| Section | Campaign Tag filter | Date range filter | Other |
+|---|:---:|:---:|---|
+| **Today's Activity** | ❌ all POCs | ❌ today only | Fixed "today" |
+| **7-day chart** | ❌ all | ❌ past 7 days | Fixed window |
+| **📈 Trends** | ❌ all | ❌ independent | **Own time controls** |
+| **KPI: Contacted** | ❌ all | ✅ applies | — |
+| **KPI: Confirmed / ER / Cost / Followers** | ✅ applies | ✅ applies | — |
+| **Status Distribution pie** | ❌ all | ✅ applies | Shows sourcing funnel |
+| **Collaboration Stage bar** | ✅ applies | ✅ applies | Shows campaign execution |
+| **ER histogram + Followers vs ER** | ✅ applies | ✅ applies | Confirmed only |
+
+**Rule of thumb:**
+- Pre-campaign views (outreach funnel, overall contacts) → **date filter only**
+- Campaign execution views (confirmed, stages, ER) → **Campaign Tag + date**
+- Trends section → **independent**, use its own Period/Range controls
+            """)
+
         # Confirmed follows Campaign Tag filter; Contacted is always the full date range
         ov_confirmed = df_filtered[df_filtered["Status"] == "Confirm"]
 
@@ -481,6 +502,7 @@ if nav == "Overview":
         overdue_count = len(overdue_list_ov)
 
         st.subheader("Today's Activity")
+        st.caption("Fixed to today — ignores sidebar filters")
         if today_total > 0:
             poc_chips = ""
             for poc_name, count in today_by_poc.items():
@@ -513,6 +535,7 @@ if nav == "Overview":
             )
 
         # 7-day outreach chart
+        st.caption("Past 7 days of outreach across all POCs — ignores sidebar filters")
         fig_daily = daily_outreach_chart(df_all)
         if fig_daily:
             st.plotly_chart(fig_daily, use_container_width=True, key="ov_daily")
@@ -526,6 +549,8 @@ if nav == "Overview":
         st.markdown("---")
 
         # ─── KPI Metrics ─────────────────────────────────────────────────
+        st.subheader("KPIs")
+        st.caption("Contacted = date range only · the rest = Campaign Tag + date range")
         k1, k2, k3, k4, k5 = st.columns(5)
         k1.metric("Contacted", len(df_by_contact))
         k2.metric("Confirmed", len(ov_confirmed))
@@ -539,7 +564,7 @@ if nav == "Overview":
         # ─── 📈 Contact → Confirm → Post Trends ──────────────────────────
         st.markdown("---")
         st.subheader("📈 Contact → Confirm → Post Trends")
-        st.caption("Operational funnel over time, split by POC. Switch Week/Month or customize the date range.")
+        st.caption("**Independent time controls** — uses its own Period/Range below, not the sidebar. Split by POC.")
 
         # Controls
         _tc1, _tc2, _tc3 = st.columns([1.2, 2, 1.5])
@@ -717,11 +742,14 @@ if nav == "Overview":
         st.markdown("---")
         c1, c2 = st.columns(2)
         with c1:
+            st.markdown("**Sourcing Funnel — Status Distribution**")
+            st.caption("📅 Date range only (Campaign Tag not applied — outreach is pre-campaign)")
             fig = status_distribution_pie(df_by_contact)
             if fig:
                 st.plotly_chart(fig, use_container_width=True, key="ov_status")
-            st.caption("All people contacted in this period.")
         with c2:
+            st.markdown("**Campaign Execution — Collaboration Stage**")
+            st.caption("🏷️ Campaign Tag + date range (confirmed influencers only)")
             fig = collab_stage_detail(ov_confirmed)
             if fig:
                 st.plotly_chart(fig, use_container_width=True, key="ov_collab")
@@ -729,16 +757,17 @@ if nav == "Overview":
         st.markdown("---")
         c3, c4 = st.columns(2)
         with c3:
+            st.markdown("**ER% Distribution**")
+            st.caption("🏷️ Campaign Tag + date range · X = ER%, Y = # influencers · Green = median, red = mean")
             fig = er_histogram(ov_confirmed)
             if fig:
                 st.plotly_chart(fig, use_container_width=True, key="ov_er")
-            st.caption("X axis = ER%, Y axis = number of influencers in that range. "
-                       "Green dashed = median, red dotted = average (pulled up by outliers).")
         with c4:
+            st.markdown("**Followers vs ER%**")
+            st.caption("🏷️ Campaign Tag + date range · Top-left = high ER with fewer followers (great value)")
             fig = followers_vs_er_scatter(ov_confirmed)
             if fig:
                 st.plotly_chart(fig, use_container_width=True, key="ov_fver")
-            st.caption("Top-left = high ER with fewer followers (great value).")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
