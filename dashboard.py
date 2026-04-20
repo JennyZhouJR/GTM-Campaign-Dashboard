@@ -948,7 +948,27 @@ elif nav == "Pipeline":
                     pass
 
         # Compute open rate stats — use df_all (not filtered by Campaign Tag)
+        # Exclude emails sent BEFORE the tracking pixel was deployed (2026-04-16).
+        # Those emails have no pixel embedded, so they'll always show as "not opened".
+        TRACKING_START_DATE = date(2026, 4, 16)
+
+        def _parse_last_sent_date(val):
+            """Parse 'YYYY-MM-DD HH:MM' string → date, or None."""
+            if not val or not isinstance(val, str):
+                return None
+            try:
+                return datetime.strptime(val.strip(), "%Y-%m-%d %H:%M").date()
+            except (ValueError, AttributeError):
+                return None
+
         _sent_tracked_all = df_all[df_all["Email Message-ID"].str.strip() != ""] if "Email Message-ID" in df_all.columns else pd.DataFrame()
+        # Floor: only count emails sent on/after tracking pixel deployment
+        if not _sent_tracked_all.empty and "Last Email Sent" in _sent_tracked_all.columns:
+            _sent_tracked_all = _sent_tracked_all[
+                _sent_tracked_all["Last Email Sent"].apply(_parse_last_sent_date).apply(
+                    lambda d: d is not None and d >= TRACKING_START_DATE
+                )
+            ]
         _sent_count = len(_sent_tracked_all)
         _opened_count = 0
         if _sent_count > 0 and "Email Opened" in _sent_tracked_all.columns:
@@ -984,7 +1004,12 @@ elif nav == "Pipeline":
                     elif _sel_range == "Last 30 days":
                         _t_start = _t_end - timedelta(days=30)
                     else:
-                        _t_start = None  # All time
+                        _t_start = TRACKING_START_DATE  # "All time" = since tracking started
+
+                # Clip start to tracking pixel deployment date so pre-tracking emails
+                # aren't included (they'd show 0% open because they have no pixel).
+                if _t_start is not None and _t_start < TRACKING_START_DATE:
+                    _t_start = TRACKING_START_DATE
 
                 # Apply time filter to _sent_tracked_all
                 def _parse_last_sent(val):
@@ -1006,11 +1031,11 @@ elif nav == "Pipeline":
                     _opened_count = (_sent_tracked_all["Email Opened"].str.strip().str.lower() == "yes").sum() if _sent_count > 0 else 0
                     _open_pct = (_opened_count / _sent_count * 100) if _sent_count else 0
 
-                # Show range summary
-                if _t_start is not None:
-                    st.caption(f"Showing emails sent between **{_t_start.strftime('%m/%d')}** and **{_t_end.strftime('%m/%d')}** — {_sent_count} emails in range.")
-                else:
-                    st.caption(f"Showing all tracked emails — {_sent_count} total (includes pre-pixel history, treat 0%-open entries with skepticism).")
+                # Show range summary — always has a start (clipped to TRACKING_START_DATE)
+                st.caption(
+                    f"Showing emails sent between **{_t_start.strftime('%m/%d/%Y')}** and **{_t_end.strftime('%m/%d/%Y')}** — {_sent_count} emails in range. "
+                    f"(Tracking pixel deployed {TRACKING_START_DATE.strftime('%m/%d/%Y')} — earlier emails excluded.)"
+                )
 
                 # If no data in range, show warning and bail
                 if _sent_count == 0:
@@ -1367,7 +1392,7 @@ elif nav == "Pipeline":
 
                                         try:
                                             sender_name = gmail_email.split("@")[0].capitalize()
-                                            send_fu(
+                                            new_msg_id = send_fu(
                                                 gmail_email, st.session_state["gmail_password"],
                                                 r["Contact"].strip(),
                                                 (r["Name"].strip().split()[0] if r["Name"].strip() else "there"),
@@ -1378,6 +1403,9 @@ elif nav == "Pipeline":
                                             batch_update_cells(ws, [
                                                 (sr, COL["last_email_sent"] + 1, now_str),
                                                 (sr, COL["followup_count"] + 1, str(c["followup_num"])),
+                                                # Update Message-ID to the follow-up's new ID so
+                                                # tracking pixel (which uses this ID) matches on open
+                                                (sr, COL["email_msg_id"] + 1, new_msg_id),
                                             ])
                                             sent += 1
                                         except Exception as e:

@@ -164,13 +164,15 @@ def run_followups():
         # Send follow-up
         followup_num = fu_count + 1
         try:
-            send_followup(
+            new_msg_id = send_followup(
                 sender_email, app_password,
                 to_email, name, poc, msg_id, followup_num,
             )
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
             ws.update_cell(sheet_row, COL["last_email_sent"] + 1, now_str)
             ws.update_cell(sheet_row, COL["followup_count"] + 1, str(followup_num))
+            # Update Message-ID to follow-up's new ID so tracking pixel matches on open
+            ws.update_cell(sheet_row, COL["email_msg_id"] + 1, new_msg_id)
             sent_count += 1
             print(f"  ✅ {name} — Follow-Up #{followup_num} sent from {sender_email}")
             time.sleep(1)  # rate limit
