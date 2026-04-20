@@ -164,24 +164,36 @@ REPLY_UNKNOWN = "unknown"   # Could not verify (IMAP/auth/network error)
 
 
 def check_reply_status(sender_email: str, app_password: str, original_msg_id: str) -> str:
-    """Check via IMAP if someone replied. Returns REPLY_YES / REPLY_NO / REPLY_UNKNOWN.
+    """Check via IMAP if the thread has been continued. Returns REPLY_YES / REPLY_NO / REPLY_UNKNOWN.
+
+    Returns REPLY_YES if the email thread has been continued by ANY party —
+    either the recipient replied (in INBOX) OR the sender manually followed up
+    via Gmail (in SENT). In both cases, auto_followup should skip to avoid
+    duplicate emails.
 
     REPLY_UNKNOWN is returned on any error (auth failure, timeout, IMAP down) —
-    callers should treat this as "don't send follow-up" (fail-closed) to avoid
-    spamming people who already replied.
+    callers should treat this as "don't send follow-up" (fail-closed).
+
+    Searches "[Gmail]/All Mail" which includes INBOX + SENT + all labels.
     """
     mail = None
     try:
         mail = imaplib.IMAP4_SSL("imap.gmail.com", timeout=15)
         mail.login(sender_email, app_password)
-        mail.select("INBOX")
+        # [Gmail]/All Mail is a virtual folder containing INBOX + SENT + everything.
+        # This lets us detect both incoming replies AND the user's own manual
+        # follow-ups (which live in SENT, not INBOX).
+        _status, _ = mail.select('"[Gmail]/All Mail"')
+        if _status != "OK":
+            # Fallback if All Mail isn't available (e.g. non-Gmail or renamed label)
+            mail.select("INBOX")
 
         # Search for emails that reference the original message
         _, data = mail.search(None, f'(HEADER In-Reply-To "{original_msg_id}")')
         if data and data[0]:
             return REPLY_YES
 
-        # Also check References header
+        # Also check References header (for threads with multiple replies)
         _, data = mail.search(None, f'(HEADER References "{original_msg_id}")')
         if data and data[0]:
             return REPLY_YES
