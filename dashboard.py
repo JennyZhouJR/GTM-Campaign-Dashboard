@@ -2332,9 +2332,11 @@ ER uplift (content fit), Views vs Avg (reach lift), CPM (cost efficiency).
             if pd.notna(r.get("_views_24hr_num")) and pd.notna(r.get("_avg_impressions_num")) and r["_avg_impressions_num"] > 0 else None,
             axis=1,
         )
-        indiv["ER vs Baseline %"] = indiv["_er_uplift"].round(1)
-        indiv["CPM ($)"] = indiv["_cpm"].round(2)
-        indiv["Cost/Signup ($)"] = indiv["_cost_per_signup"].round(2)
+        # Use pd.to_numeric with errors='coerce' so None/NaN don't break .round()
+        # Python 3.14's stricter round() rejects None with TypeError
+        indiv["ER vs Baseline %"] = pd.to_numeric(indiv["_er_uplift"], errors="coerce").round(1)
+        indiv["CPM ($)"] = pd.to_numeric(indiv["_cpm"], errors="coerce").round(2)
+        indiv["Cost/Signup ($)"] = pd.to_numeric(indiv["_cost_per_signup"], errors="coerce").round(2)
         indiv_cols = ["Name", "POC", "Post Link", "Content Type", "Type", "Senority", "Job Function",
                       "followers", "Country", "Price（$)", "24hr Views", "Signups",
                       "Post ER", "Baseline ER", "Views vs Avg %", "ER vs Baseline %",
