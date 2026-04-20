@@ -536,6 +536,184 @@ if nav == "Overview":
         avg_fol = ov_confirmed["_followers_num"].dropna().mean()
         k5.metric("Avg Followers", f"{avg_fol:,.0f}" if pd.notna(avg_fol) else "N/A")
 
+        # ─── 📈 Contact → Confirm → Post Trends ──────────────────────────
+        st.markdown("---")
+        st.subheader("📈 Contact → Confirm → Post Trends")
+        st.caption("Operational funnel over time, split by POC. Switch Week/Month or customize the date range.")
+
+        # Controls
+        _tc1, _tc2, _tc3 = st.columns([1.2, 2, 1.5])
+        with _tc1:
+            _period_mode = st.pills("Period", ["Week", "Month"], default="Week", key="trend_period")
+            if _period_mode is None:
+                _period_mode = "Week"
+        with _tc2:
+            if _period_mode == "Week":
+                _range_opts = ["Last 4 weeks", "Last 8 weeks", "Last 12 weeks", "Last 26 weeks"]
+                _range_default = "Last 8 weeks"
+            else:
+                _range_opts = ["Last 3 months", "Last 6 months", "Last 12 months"]
+                _range_default = "Last 6 months"
+            _range_sel = st.selectbox("Range", _range_opts, index=_range_opts.index(_range_default), key="trend_range")
+        with _tc3:
+            _use_custom = st.checkbox("Custom dates", key="trend_custom")
+
+        _tc4, _tc5 = st.columns(2)
+        if _use_custom:
+            with _tc4:
+                _trend_start = st.date_input("From", value=date.today() - timedelta(days=60), key="trend_start")
+            with _tc5:
+                _trend_end = st.date_input("To", value=date.today(), key="trend_end")
+        else:
+            _n = int(_range_sel.split()[1])
+            _trend_end = date.today()
+            if _period_mode == "Week":
+                _trend_start = _trend_end - timedelta(weeks=_n)
+            else:
+                # Go back N months (approximate via 30.44 days/month)
+                _trend_start = _trend_end - timedelta(days=int(_n * 30.44))
+
+        # Helper functions
+        def _period_key(d, mode):
+            if d is None or pd.isna(d):
+                return None
+            # Handle datetime too
+            if hasattr(d, "date"):
+                d = d.date()
+            if mode == "Week":
+                return d - timedelta(days=d.weekday())  # Monday of that week
+            return date(d.year, d.month, 1)
+
+        def _gen_period_keys(start, end, mode):
+            """Generate ordered list of period keys spanning start to end."""
+            keys = []
+            if mode == "Week":
+                cur = start - timedelta(days=start.weekday())
+                while cur <= end:
+                    keys.append(cur)
+                    cur = cur + timedelta(weeks=1)
+            else:
+                cur = date(start.year, start.month, 1)
+                end_key = date(end.year, end.month, 1)
+                while cur <= end_key:
+                    keys.append(cur)
+                    # Next month
+                    if cur.month == 12:
+                        cur = date(cur.year + 1, 1, 1)
+                    else:
+                        cur = date(cur.year, cur.month + 1, 1)
+            return keys
+
+        _period_keys = _gen_period_keys(_trend_start, _trend_end, _period_mode)
+
+        def _count_by_period_poc(date_col):
+            """Build a grouped DataFrame: _period, POC, count."""
+            if date_col not in df_all.columns:
+                return pd.DataFrame(columns=["_period", "_poc_clean", "count"])
+            d = df_all[df_all[date_col].notna()].copy()
+            d["_period"] = d[date_col].apply(lambda x: _period_key(x, _period_mode))
+            d = d[d["_period"].isin(_period_keys)]
+            d["_poc_clean"] = d["POC"].astype(str).str.strip()
+            return d.groupby(["_period", "_poc_clean"]).size().reset_index(name="count")
+
+        contacted_g = _count_by_period_poc("_date_of_contact_parsed")
+        confirmed_g = _count_by_period_poc("_confirm_date_parsed")
+        posted_g = _count_by_period_poc("_post_date_parsed")
+
+        # Period-over-period comparison (current vs previous period)
+        def _period_total(grouped, key):
+            if grouped.empty or key is None:
+                return 0
+            return int(grouped[grouped["_period"] == key]["count"].sum())
+
+        if len(_period_keys) >= 2:
+            _cur_key = _period_keys[-1]
+            _prev_key = _period_keys[-2]
+        else:
+            _cur_key = _period_keys[-1] if _period_keys else None
+            _prev_key = None
+
+        def _delta_parts(cur, prev):
+            if prev == 0 and cur == 0:
+                return "→", "#9CA3AF", "no change"
+            if prev == 0:
+                return "↑", "#059669", f"(new, prev 0)"
+            pct = (cur / prev - 1) * 100
+            if pct >= 10: return "↑", "#059669", f"{pct:+.0f}% vs prev {prev}"
+            if pct <= -10: return "↓", "#DC2626", f"{pct:+.0f}% vs prev {prev}"
+            return "→", "#9CA3AF", f"{pct:+.0f}% vs prev {prev}"
+
+        _metrics = [
+            ("📬", "Contacted", contacted_g, "#748FFC"),
+            ("✅", "Confirmed", confirmed_g, "#63E6BE"),
+            ("🎬", "Posted", posted_g, "#22D3EE"),
+        ]
+
+        # Compact comparison cards
+        _cmp_cols = st.columns(3)
+        for (emoji, name, g, _color), col in zip(_metrics, _cmp_cols):
+            with col:
+                cur = _period_total(g, _cur_key)
+                prev = _period_total(g, _prev_key) if _prev_key else 0
+                arrow, color, note = _delta_parts(cur, prev)
+                _period_word = "week" if _period_mode == "Week" else "month"
+                st.markdown(
+                    f'<div style="background:#FAFBFC; border-radius:8px; padding:12px 14px; border-left:3px solid {_color};">'
+                    f'<div style="font-size:0.75em; color:#9CA3AF; text-transform:uppercase; letter-spacing:0.03em;">{emoji} {name} — this {_period_word}</div>'
+                    f'<div style="font-size:1.6em; font-weight:700; color:#1F2937; margin:4px 0 2px;">{cur}</div>'
+                    f'<div style="font-size:0.8em; color:{color}; font-weight:600;">{arrow} {note}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+
+        # Stacked bar charts (3 side by side)
+        import plotly.graph_objects as go
+
+        def _build_trend_bar(grouped, title, emoji):
+            """Stacked bar chart by POC for a time trend."""
+            fig = go.Figure()
+            if grouped.empty:
+                # Empty chart
+                fig.add_trace(go.Bar(x=[], y=[]))
+            else:
+                pocs = sorted([p for p in grouped["_poc_clean"].unique() if p])
+                if not pocs:
+                    pocs = [""]
+                for poc in pocs:
+                    sub = grouped[grouped["_poc_clean"] == poc]
+                    counts = sub.set_index("_period")["count"].reindex(_period_keys, fill_value=0)
+                    fig.add_trace(go.Bar(
+                        x=[k.strftime("%m/%d") if _period_mode == "Week" else k.strftime("%b %Y")
+                           for k in _period_keys],
+                        y=counts.values.tolist(),
+                        name=poc or "(unassigned)",
+                        marker_color=POC_COLORS.get(poc, "#B197FC"),
+                        hovertemplate="<b>%{x}</b><br>" + (poc or "(unassigned)") + ": %{y}<extra></extra>",
+                    ))
+            fig.update_layout(
+                title=dict(text=f"{emoji} {title}", font=dict(size=13)),
+                barmode="stack",
+                margin=dict(t=36, b=30, l=10, r=10),
+                height=280,
+                font=dict(family="DM Sans, Inter, sans-serif"),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                showlegend=True,
+                legend=dict(orientation="h", y=-0.2, font=dict(size=10)),
+                xaxis=dict(tickangle=-30, tickfont=dict(size=9)),
+                yaxis=dict(gridcolor="#EDEDED", tickfont=dict(size=10)),
+            )
+            return fig
+
+        _trend_cols = st.columns(3)
+        for (emoji, name, g, _color), col in zip(_metrics, _trend_cols):
+            with col:
+                st.plotly_chart(
+                    _build_trend_bar(g, f"{name} by {_period_mode}", emoji),
+                    use_container_width=True,
+                    key=f"trend_{name.lower()}",
+                )
+
         st.markdown("---")
         c1, c2 = st.columns(2)
         with c1:
