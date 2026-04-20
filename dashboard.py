@@ -1424,17 +1424,35 @@ elif nav == "Payment & Performance":
             return None
         perf["ER vs Baseline %"] = perf.apply(_er_vs_baseline, axis=1) if "Post ER" in perf.columns else None
 
+        # Compute Overall Score (composite 0-100) — same formula as Report tab
+        # 30% ER uplift + 40% Views vs Avg + 30% CPM (reversed)
+        if "ER vs Baseline %" in perf.columns and "Views vs Avg %" in perf.columns and "CPM ($)" in perf.columns:
+            _er_pct_p = perf["ER vs Baseline %"].rank(pct=True, ascending=True)
+            _views_pct_p = perf["Views vs Avg %"].rank(pct=True, ascending=True)
+            _cpm_pct_p = perf["CPM ($)"].rank(pct=True, ascending=False)
+            perf["Score"] = (0.30 * _er_pct_p + 0.40 * _views_pct_p + 0.30 * _cpm_pct_p) * 100
+            perf["Score"] = perf["Score"].round(0)
+
         # Only show rows with at least some data
         perf_display = perf.dropna(subset=["Cost ($)"])
         if not perf_display.empty:
-            # Sort toggle
-            _sort_mode = st.pills("Sort by", ["By CPM (best value)", "By 24hr Views"],
-                                  default="By CPM (best value)", key="perf_sort")
+            # Sort toggle — Overall Score is default
+            _sort_mode = st.pills(
+                "Sort by",
+                ["By Overall Score", "By CPM (best value)", "By 24hr Views"],
+                default="By Overall Score",
+                key="perf_sort",
+            )
             if _sort_mode == "By 24hr Views":
                 perf_sorted = perf_display.sort_values("24hr Views", ascending=False, na_position="last")
-            else:
+            elif _sort_mode == "By CPM (best value)":
                 perf_sorted = perf_display.sort_values("CPM ($)", ascending=True, na_position="last")
-            _perf_display_order = ["Name", "POC", "Content Type", "Type", "Seniority", "Job Function",
+            else:  # By Overall Score
+                _sort_col = "Score" if "Score" in perf_display.columns else "CPM ($)"
+                _asc = False if _sort_col == "Score" else True
+                perf_sorted = perf_display.sort_values(_sort_col, ascending=_asc, na_position="last")
+            st.caption("ℹ️ Overall Score = 30% ER uplift + 40% Views vs Avg + 30% CPM (reversed). See Report tab for full formula.")
+            _perf_display_order = ["Name", "POC", "Score", "Content Type", "Type", "Seniority", "Job Function",
                                    "Cost ($)", "24hr Views", "Avg Views", "Views vs Avg %",
                                    "Post ER", "Baseline ER", "ER vs Baseline %",
                                    "Signups", "CPM ($)", "Cost/Signup ($)", "Post Link"]
@@ -1444,6 +1462,7 @@ elif nav == "Payment & Performance":
                 use_container_width=True, hide_index=True,
                 column_config={
                     "Post Link": st.column_config.LinkColumn("Post Link"),
+                    "Score": st.column_config.NumberColumn("Score", format="%.0f", help="0-100 composite: 30% ER uplift + 40% Views vs Avg + 30% CPM"),
                     "Views vs Avg %": st.column_config.NumberColumn("Views vs Avg %", format="%+.1f%%"),
                     "ER vs Baseline %": st.column_config.NumberColumn("ER vs Baseline %", format="%+.1f%%"),
                     "Post ER": st.column_config.NumberColumn("Post ER", format="%.2f%%"),
@@ -1522,6 +1541,20 @@ elif nav == "Report":
             if pd.notna(r.get("_post_er_num")) and pd.notna(r.get("_baseline_er_num")) and r["_baseline_er_num"] > 0 else None,
             axis=1,
         )
+        df_rep["_views_vs_avg"] = df_rep.apply(
+            lambda r: (r["_views_24hr_num"] / r["_avg_impressions_num"] - 1) * 100
+            if pd.notna(r.get("_views_24hr_num")) and pd.notna(r.get("_avg_impressions_num")) and r["_avg_impressions_num"] > 0 else None,
+            axis=1,
+        )
+        # Overall Score — composite of ER uplift, Views vs Avg, CPM (percentile-ranked)
+        # Weights: 30% ER uplift + 40% Views vs Avg + 30% CPM (reversed, low is good)
+        # Uses Views vs Avg (not absolute) for cross-tier fairness (Nano vs Macro).
+        _er_pct = df_rep["_er_uplift"].rank(pct=True, ascending=True)
+        _views_pct = df_rep["_views_vs_avg"].rank(pct=True, ascending=True)
+        _cpm_pct = df_rep["_cpm"].rank(pct=True, ascending=False)  # low CPM = high pct
+        df_rep["_overall_score"] = (
+            0.30 * _er_pct + 0.40 * _views_pct + 0.30 * _cpm_pct
+        ) * 100
 
         # Follower bucket function
         def _fbucket(n):
@@ -1580,15 +1613,42 @@ elif nav == "Report":
         rm4.metric("Cost/Signup", f"${r_total_cost / r_total_signups:.2f}" if r_total_cost and r_total_signups else "N/A")
         rm5.metric("Avg CPM", f"${r_total_cost / r_total_views * 1000:.2f}" if r_total_cost and r_total_views else "N/A")
 
+        # ─── About Overall Score (collapsed by default) ──────────────
+        with st.expander("ℹ️ About Overall Score — how we rank influencers", expanded=False):
+            st.markdown("""
+**Formula:**
+```
+Overall Score =  0.30 × ER uplift percentile
+              +  0.40 × Views vs Avg percentile
+              +  0.30 × CPM percentile (reversed)
+```
+Output is 0–100. Each dimension is percentile-ranked within this campaign so different scales combine fairly.
+
+**Why Views vs Avg instead of absolute Views?**
+Each influencer is compared to their OWN last-10-reels baseline, so Nano (<10K) and Macro (100K+) use the same yardstick.
+A Nano whose post beat their normal views by +50% scores the same as a Macro who did the same — fair across follower tiers.
+
+**Why not Cost/Signup?**
+UTM attribution is unreliable — most signups fall into organic. So we judge on three signals that we CAN measure well:
+ER uplift (content fit), Views vs Avg (reach lift), CPM (cost efficiency).
+
+**Weight rationale:**
+- **Views vs Avg 40%** — reach matters most, but only in relative terms
+- **ER uplift 30%** — did the content actually resonate with their audience?
+- **CPM 30%** — cost efficiency, keeps spend honest
+            """)
+
         # ─── Top Performers ──────────────────────────────────────────
         st.markdown("---")
         st.subheader("🏆 Top Performers")
 
-        def _top_card(name, poc, metric_label, metric_value, post_link):
+        def _top_card(name, poc, metric_label, metric_value, post_link, emphasize=False):
             pc = poc_color(poc)
             link_html = f'<a href="{post_link}" target="_blank" style="color:#3B82F6; font-size:0.78em; text-decoration:none;">View post ↗</a>' if post_link else ""
+            bg = "#FFFBEB" if emphasize else "#FAFBFC"
+            border = "#F59E0B" if emphasize else pc
             return (
-                f'<div style="background:#FAFBFC; border-radius:10px; padding:12px 14px; margin-bottom:8px; border-left:4px solid {pc};">'
+                f'<div style="background:{bg}; border-radius:10px; padding:12px 14px; margin-bottom:8px; border-left:4px solid {border};">'
                 f'<div style="font-weight:600; color:#1F2937; font-size:0.95em;">{name or "(no name)"}</div>'
                 f'<div style="display:flex; align-items:center; gap:6px; font-size:0.78em; color:#6B7280; margin-top:2px;">'
                 f'<span style="width:7px; height:7px; border-radius:50%; background:{pc}; display:inline-block;"></span>{poc}</div>'
@@ -1597,6 +1657,26 @@ elif nav == "Report":
                 f'<div style="margin-top:4px;">{link_html}</div>'
                 f'</div>'
             )
+
+        # Primary: Top 3 by Overall Score (the MVP ranking)
+        st.markdown("##### 🏆 Campaign MVPs (by Overall Score)")
+        st.caption("Composite score — see ℹ️ About Overall Score above for the formula")
+        top_score = df_rep.dropna(subset=["_overall_score"]).sort_values("_overall_score", ascending=False).head(3)
+        if top_score.empty:
+            st.info("No Overall Score data yet — need ER uplift, Views vs Avg, and CPM.")
+        else:
+            mvp_cols = st.columns(3)
+            for i, (_, r) in enumerate(top_score.iterrows()):
+                with mvp_cols[i]:
+                    st.markdown(_top_card(
+                        r.get("Name", ""), (r.get("POC") or "").strip(),
+                        "Overall Score", f"{r['_overall_score']:.0f}",
+                        (r.get("Post Link") or "").strip(),
+                        emphasize=True,
+                    ), unsafe_allow_html=True)
+
+        st.markdown("##### By Individual Dimensions")
+        st.caption("Breakdowns if you want to dig into specific signals")
 
         tp_col1, tp_col2, tp_col3 = st.columns(3)
         # Top 3 by ER vs Baseline
@@ -1658,40 +1738,45 @@ elif nav == "Report":
                 avg_cost_per_signup=("_cost_per_signup", "mean"),
                 avg_er_uplift=("_er_uplift", "mean"),
                 avg_views=("_views_24hr_num", "mean"),
+                avg_score=("_overall_score", "mean"),
             ).reset_index()
-            g = g.sort_values("avg_cpm", ascending=True, na_position="last")
+            g = g.sort_values("avg_score", ascending=False, na_position="last")
             return g
 
         def _segment_display(seg_df, label, first_col_name=None):
             """Render a segment table — clean, scannable, best row highlighted.
 
-            Sorted by ER uplift descending (best first). Best row gets 🥇 + green bg.
+            Sorted by Overall Score desc (best first). Best row gets 🥇 + green bg.
             """
             if seg_df.empty:
                 st.info(f"No data for {label} segmentation.")
                 return
-            # Sort by ER uplift (descending — highest first). Fall back to CPM asc.
-            if seg_df["avg_er_uplift"].notna().any():
+            # Sort by Overall Score (desc). Fall back to ER uplift, then CPM.
+            if seg_df.get("avg_score", pd.Series(dtype=float)).notna().any():
+                sorted_df = seg_df.sort_values("avg_score", ascending=False, na_position="last")
+            elif seg_df["avg_er_uplift"].notna().any():
                 sorted_df = seg_df.sort_values("avg_er_uplift", ascending=False, na_position="last")
             else:
                 sorted_df = seg_df.sort_values("avg_cpm", ascending=True, na_position="last")
 
             seg_col = first_col_name or seg_df.columns[0]
-            # Find index of best row (first row with non-NaN ER uplift, or first row overall)
+            # Find index of best row (highest Overall Score)
             best_idx = None
-            if sorted_df["avg_er_uplift"].notna().any():
+            if sorted_df.get("avg_score", pd.Series(dtype=float)).notna().any():
+                best_idx = sorted_df.index[sorted_df["avg_score"].notna()][0]
+            elif sorted_df["avg_er_uplift"].notna().any():
                 best_idx = sorted_df.index[sorted_df["avg_er_uplift"].notna()][0]
 
-            # Build HTML table
+            # Build HTML table (Score column first after segment name)
             html = (
                 '<table style="width:100%; border-collapse:collapse; font-size:0.88em; margin-bottom:8px;">'
                 '<thead><tr style="background:#F3F4F6; color:#374151;">'
                 f'<th style="padding:10px 12px; text-align:left; border-bottom:2px solid #E5E7EB;">{label}</th>'
                 '<th style="padding:10px 12px; text-align:center; border-bottom:2px solid #E5E7EB;">#</th>'
-                '<th style="padding:10px 12px; text-align:right; border-bottom:2px solid #E5E7EB;">Avg CPM</th>'
-                '<th style="padding:10px 12px; text-align:right; border-bottom:2px solid #E5E7EB;">Avg Cost/Signup</th>'
+                '<th style="padding:10px 12px; text-align:right; border-bottom:2px solid #E5E7EB;">Score</th>'
                 '<th style="padding:10px 12px; text-align:right; border-bottom:2px solid #E5E7EB;">ER vs Baseline</th>'
                 '<th style="padding:10px 12px; text-align:right; border-bottom:2px solid #E5E7EB;">Avg Views</th>'
+                '<th style="padding:10px 12px; text-align:right; border-bottom:2px solid #E5E7EB;">Avg CPM</th>'
                 '</tr></thead><tbody>'
             )
 
@@ -1701,10 +1786,16 @@ elif nav == "Report":
                 crown = "🥇 " if is_best else ""
                 name = f'{crown}{row[seg_col]}'
 
-                # Format each metric
+                # Format metrics
                 n_val = int(row["n"]) if pd.notna(row.get("n")) else 0
-                cpm = f"${row['avg_cpm']:.2f}" if pd.notna(row.get("avg_cpm")) else "—"
-                cps = f"${row['avg_cost_per_signup']:.2f}" if pd.notna(row.get("avg_cost_per_signup")) else "—"
+                score = row.get("avg_score")
+                if pd.isna(score):
+                    score_html = '<span style="color:#9CA3AF;">—</span>'
+                else:
+                    if score >= 70: score_color = "#059669"
+                    elif score >= 50: score_color = "#3B82F6"
+                    else: score_color = "#9CA3AF"
+                    score_html = f'<span style="color:{score_color}; font-weight:700;">{score:.0f}</span>'
                 er = row.get("avg_er_uplift")
                 if pd.isna(er):
                     er_html = '<span style="color:#9CA3AF;">—</span>'
@@ -1712,15 +1803,16 @@ elif nav == "Report":
                     color = "#059669" if er >= 0 else "#DC2626"
                     er_html = f'<span style="color:{color}; font-weight:600;">{er:+.1f}%</span>'
                 views = f"{int(row['avg_views']):,}" if pd.notna(row.get("avg_views")) else "—"
+                cpm = f"${row['avg_cpm']:.2f}" if pd.notna(row.get("avg_cpm")) else "—"
 
                 html += (
                     f'<tr style="background:{bg}; border-bottom:1px solid #F3F4F6;">'
                     f'<td style="padding:9px 12px; color:#1F2937; font-weight:{("600" if is_best else "500")};">{name}</td>'
                     f'<td style="padding:9px 12px; text-align:center; color:#6B7280;">{n_val}</td>'
-                    f'<td style="padding:9px 12px; text-align:right; color:#374151;">{cpm}</td>'
-                    f'<td style="padding:9px 12px; text-align:right; color:#374151;">{cps}</td>'
+                    f'<td style="padding:9px 12px; text-align:right;">{score_html}</td>'
                     f'<td style="padding:9px 12px; text-align:right;">{er_html}</td>'
                     f'<td style="padding:9px 12px; text-align:right; color:#6B7280;">{views}</td>'
+                    f'<td style="padding:9px 12px; text-align:right; color:#374151;">{cpm}</td>'
                     f'</tr>'
                 )
             html += '</tbody></table>'
@@ -1729,9 +1821,10 @@ elif nav == "Report":
         # ─── Segment Analysis — 4 dimensions ──────────────────────────
         st.markdown("---")
         st.subheader("📐 What Worked Best")
-        st.caption("Each table compares how different segments performed. 🥇 marks the best ER uplift in each group. Sorted by ER uplift (content resonance).")
+        st.caption("Each table compares how different segments performed. 🥇 marks the best segment (highest Avg Overall Score). Sorted by Score descending.")
 
         st.markdown("##### By Followers Size")
+        st.caption("🥇 best performer within each tier — use this when sourcing the next round of same-size influencers")
         fol_stats = _segment_stats(df_rep, "_follower_bucket")
         _segment_display(fol_stats, "Followers", first_col_name="_follower_bucket")
 
@@ -1751,9 +1844,9 @@ elif nav == "Report":
         st.markdown("---")
         st.subheader("🏅 Best Archetype")
 
-        def _best_segment(seg_df, metric="avg_er_uplift", ascending=False):
-            """Pick the segment with the best value for a given metric."""
-            if seg_df.empty:
+        def _best_segment(seg_df, metric="avg_score", ascending=False):
+            """Pick the segment with the best value for a given metric (default: Overall Score)."""
+            if seg_df.empty or metric not in seg_df.columns:
                 return None
             d = seg_df.dropna(subset=[metric])
             if d.empty:
@@ -1773,17 +1866,17 @@ elif nav == "Report":
         if best_sen is not None: archetype_parts.append(f"**{best_sen['Senority']}** seniority")
 
         if archetype_parts:
-            # Compute average metrics across best archetype combos (just use best_ct as proxy — more robust than cross-filter)
+            # Use best Content Type segment as proxy for characteristics (most granular)
             proxy = best_ct if best_ct is not None else (best_fol if best_fol is not None else best_type)
             chars = []
-            if pd.notna(proxy.get("avg_cpm")): chars.append(f"avg CPM ${proxy['avg_cpm']:.2f}")
-            if pd.notna(proxy.get("avg_er_uplift")): chars.append(f"avg ER uplift {proxy['avg_er_uplift']:+.1f}%")
-            if pd.notna(proxy.get("avg_cost_per_signup")): chars.append(f"avg Cost/Signup ${proxy['avg_cost_per_signup']:.2f}")
+            if pd.notna(proxy.get("avg_score")): chars.append(f"avg Score {proxy['avg_score']:.0f}")
+            if pd.notna(proxy.get("avg_er_uplift")): chars.append(f"ER uplift {proxy['avg_er_uplift']:+.1f}%")
+            if pd.notna(proxy.get("avg_cpm")): chars.append(f"CPM ${proxy['avg_cpm']:.2f}")
             st.markdown(
                 f'<div style="background:#F0F9FF; border:1px solid #BAE6FD; border-radius:8px; padding:16px 20px;">'
-                f'<div style="font-weight:700; color:#0C4A6E; margin-bottom:6px;">Based on this campaign, the best-performing archetype is:</div>'
+                f'<div style="font-weight:700; color:#0C4A6E; margin-bottom:6px;">Based on Overall Score, the best-performing archetype is:</div>'
                 f'<div style="font-size:1.05em; color:#1F2937; margin-bottom:8px;">{" · ".join(archetype_parts)}</div>'
-                f'<div style="font-size:0.88em; color:#6B7280;">Characteristics (from best Content Type segment): {" · ".join(chars) if chars else "—"}</div>'
+                f'<div style="font-size:0.88em; color:#6B7280;">Characteristics (best Content Type segment): {" · ".join(chars) if chars else "—"}</div>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
@@ -1802,6 +1895,14 @@ elif nav == "Report":
             if a is None or b is None or b == 0:
                 return None
             return (a / b - 1) * 100
+
+        # 0. Top Overall Score winner (campaign MVP)
+        if not top_score.empty:
+            mvp = top_score.iloc[0]
+            insights.append(
+                f"🏆 **{mvp.get('Name', '(no name)')}** is this campaign's MVP with Overall Score "
+                f"{mvp['_overall_score']:.0f}, balancing content fit, reach lift, and cost efficiency."
+            )
 
         # 1. Best follower bucket
         if best_fol is not None and overall_cpm and pd.notna(best_fol.get("avg_cpm")):
@@ -1846,6 +1947,11 @@ elif nav == "Report":
         if insights:
             for i, t in enumerate(insights, 1):
                 st.markdown(f"{i}. {t}")
+            st.caption(
+                "ℹ️ Overall Score weights ER uplift (30%), Views vs Avg (40%), and CPM (30%) — "
+                "we use these 3 because Cost/Signup via UTM attribution is unreliable "
+                "(most signups get bucketed as organic). See ℹ️ About Overall Score at the top."
+            )
         else:
             st.info("Not enough data for insights yet — fill in more campaign results.")
 
