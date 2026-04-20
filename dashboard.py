@@ -1644,7 +1644,15 @@ ER uplift (content fit), Views vs Avg (reach lift), CPM (cost efficiency).
 
         def _top_card(name, poc, metric_label, metric_value, post_link, emphasize=False):
             pc = poc_color(poc)
-            link_html = f'<a href="{post_link}" target="_blank" style="color:#3B82F6; font-size:0.78em; text-decoration:none;">View post ↗</a>' if post_link else ""
+            # Ensure URL has a scheme — otherwise browser treats it as relative
+            # and navigates within the Streamlit app
+            if post_link:
+                _link = post_link.strip()
+                if _link and not _link.lower().startswith(("http://", "https://")):
+                    _link = "https://" + _link.lstrip("/")
+                link_html = f'<a href="{_link}" target="_blank" rel="noopener noreferrer" style="color:#3B82F6; font-size:0.78em; text-decoration:none;">View post ↗</a>'
+            else:
+                link_html = ""
             bg = "#FFFBEB" if emphasize else "#FAFBFC"
             border = "#F59E0B" if emphasize else pc
             return (
