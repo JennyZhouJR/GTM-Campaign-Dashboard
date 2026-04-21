@@ -98,16 +98,26 @@ def _retry(fn, retries=3):
 
 
 def ensure_new_columns(ws):
-    """Add AB-AE headers if they don't exist yet."""
-    row1 = ws.row_values(1)
-    if len(row1) >= 41:
-        return  # already have all columns
-    cells = []
-    for col_idx, header in NEW_HEADERS.items():
-        if len(row1) < col_idx or (len(row1) >= col_idx and not row1[col_idx - 1].strip()):
-            cells.append(gspread.Cell(1, col_idx, header))
-    if cells:
-        _retry(lambda: ws.update_cells(cells))
+    """Add AB-AO headers if they don't exist yet.
+
+    Fail-soft: if the Sheet API call fails (rate limit, auth hiccup, etc.),
+    log a warning and continue. Headers are nearly always already present in
+    practice — this is a defensive one-time migration helper, not required
+    for dashboard to function.
+    """
+    try:
+        row1 = ws.row_values(1)
+        if len(row1) >= 41:
+            return  # already have all columns
+        cells = []
+        for col_idx, header in NEW_HEADERS.items():
+            if len(row1) < col_idx or (len(row1) >= col_idx and not row1[col_idx - 1].strip()):
+                cells.append(gspread.Cell(1, col_idx, header))
+        if cells:
+            _retry(lambda: ws.update_cells(cells))
+    except Exception as e:
+        # Don't block dashboard load — headers almost certainly exist already.
+        print(f"⚠️ ensure_new_columns skipped: {e}")
 
 
 def load_dataframe(ws) -> pd.DataFrame:
