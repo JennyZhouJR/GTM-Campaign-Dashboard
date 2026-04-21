@@ -185,6 +185,20 @@ def cast_numeric(val):
     return None
 
 
+def get_today_la():
+    """Return today's date in America/Los_Angeles timezone.
+
+    Falls back to naive local date on machines without zoneinfo data.
+    Consolidates the try/except boilerplate previously inlined 4 times in dashboard.py.
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("America/Los_Angeles")).date()
+    except Exception:
+        from datetime import date as _date
+        return _date.today()
+
+
 def follower_bucket(n):
     """Return follower-count bucket label for n. Returns None if n is None/NaN.
 

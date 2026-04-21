@@ -133,7 +133,9 @@ def collab_stage_detail(df: pd.DataFrame):
 
 
 def collab_stage_breakdown(df: pd.DataFrame) -> dict:
-    """Return a dict: {stage: [(name, poc), ...]} for kanban display.
+    """Return a dict: {stage: [(name, poc, sheet_row), ...]} for kanban display.
+
+    `sheet_row` is included so kanban cards can deep-link to the Sheet.
     Shows all stages in COLLAB_STAGE_ORDER first, then any unknown stages."""
     col = "Collaboration Stage"
     if col not in df.columns:
@@ -150,13 +152,13 @@ def collab_stage_breakdown(df: pd.DataFrame) -> dict:
         matched_key = known_lower.get(sv.lower())
         if matched_key:
             stage_to_rows.setdefault(matched_key, []).extend(
-                [(r.get("Name", ""), r.get("POC", ""))
+                [(r.get("Name", ""), r.get("POC", ""), r.get("_sheet_row", 0))
                  for _, r in df[df[col].str.strip() == sv].iterrows()]
             )
         else:
             # Unknown stage — add as-is
             stage_to_rows.setdefault(sv, []).extend(
-                [(r.get("Name", ""), r.get("POC", ""))
+                [(r.get("Name", ""), r.get("POC", ""), r.get("_sheet_row", 0))
                  for _, r in df[df[col].str.strip() == sv].iterrows()]
             )
     # Output in COLLAB_STAGE_ORDER order, then unknowns

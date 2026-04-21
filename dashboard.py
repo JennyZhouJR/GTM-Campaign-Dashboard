@@ -23,7 +23,7 @@ from dashboard_utils.data_model import (
     prepare_dataframe, filter_by_contact_date,
     filter_by_status, parse_date, get_timeline_status,
     follower_bucket, parse_sheet_datetime, parse_sheet_date,
-    compute_overall_score,
+    compute_overall_score, get_today_la,
 )
 from dashboard_utils.charts import (
     status_distribution_pie, collab_stage_detail, collab_stage_breakdown,
@@ -244,21 +244,36 @@ st.sidebar.caption(f"Confirmed: {len(confirmed)}")
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
+# Map of Sheet column names → user-facing display labels.
+# Use this to fix typos in the Google Sheet schema without renaming columns.
+DISPLAY_LABELS = {
+    "Senority": "Seniority",  # Sheet typo — don't rename schema, just display correctly
+}
+
+
+def _col_label(col_name):
+    """Return user-facing label for a column, applying DISPLAY_LABELS overrides."""
+    return DISPLAY_LABELS.get(col_name, col_name)
+
+
 def make_column_config(editable_cols):
     config = {}
     for col_name, col_type in editable_cols.items():
+        label = _col_label(col_name)
         if col_type == "select_status":
-            config[col_name] = st.column_config.SelectboxColumn(col_name, options=STATUS_OPTIONS)
+            config[col_name] = st.column_config.SelectboxColumn(label, options=STATUS_OPTIONS)
         elif col_type == "select_collab":
-            config[col_name] = st.column_config.SelectboxColumn(col_name, options=COLLAB_STAGE_OPTIONS)
+            config[col_name] = st.column_config.SelectboxColumn(label, options=COLLAB_STAGE_OPTIONS)
         elif col_type == "select_payment":
-            config[col_name] = st.column_config.SelectboxColumn(col_name, options=PAYMENT_PROGRESS_OPTIONS)
+            config[col_name] = st.column_config.SelectboxColumn(label, options=PAYMENT_PROGRESS_OPTIONS)
         elif col_type == "select_campaign":
-            config[col_name] = st.column_config.SelectboxColumn(col_name, options=CAMPAIGN_TAG_OPTIONS)
+            config[col_name] = st.column_config.SelectboxColumn(label, options=CAMPAIGN_TAG_OPTIONS)
         elif col_type == "select_contract":
-            config[col_name] = st.column_config.SelectboxColumn(col_name, options=CONTRACT_OPTIONS)
+            config[col_name] = st.column_config.SelectboxColumn(label, options=CONTRACT_OPTIONS)
         elif col_type == "text":
-            config[col_name] = st.column_config.TextColumn(col_name)
+            config[col_name] = st.column_config.TextColumn(label)
+        elif col_type == "link":
+            config[col_name] = st.column_config.LinkColumn(label, display_text="📝 Edit")
     config["Profile Link"] = st.column_config.LinkColumn("Profile Link")
     return config
 
@@ -397,6 +412,30 @@ def poc_color(poc):
     return POC_HEX.get(poc.strip().lower(), "#B197FC")
 
 
+# ─── Google Sheet deep-link helper ─────────────────────────────────────────
+# Lets users jump from any dashboard view to the corresponding row in the
+# campaign tracker Sheet with a single click.
+SHEET_BASE_URL = "https://docs.google.com/spreadsheets/d/1hvAJnBUFdQWyLRE2oAwRwB9Z_Ugu6hVUfFjHdBDsSG0/edit"
+
+
+def sheet_row_link(sheet_row) -> str:
+    """Return deep link to a specific row in the campaign tracker Sheet."""
+    try:
+        return f"{SHEET_BASE_URL}#gid=0&range=A{int(sheet_row)}"
+    except (TypeError, ValueError):
+        return SHEET_BASE_URL
+
+
+def sheet_row_icon(sheet_row, size_em=0.85, margin_left_px=3) -> str:
+    """Return a small grey 📝 link HTML element pointing at a specific Sheet row."""
+    link = sheet_row_link(sheet_row)
+    return (
+        f'<a href="{link}" target="_blank" '
+        f'style="color:#9CA3AF; text-decoration:none; font-size:{size_em}em; '
+        f'margin-left:{margin_left_px}px;" title="Open in Google Sheet">📝</a>'
+    )
+
+
 def render_delivery_progress(stages_series, show_total=True):
     """Return HTML for the Confirm → Post delivery progress bar.
 
@@ -449,12 +488,19 @@ def render_kanban(df_src, show_poc_prefix=True):
                 f'letter-spacing:0.02em; border-bottom:3px solid {stage_color};">'
                 f'{stage} ({len(people)})</div>', unsafe_allow_html=True)
             chips = ""
-            for name, poc in people:
+            for person in people:
+                # Backward-compatible unpack: support both (name, poc) and (name, poc, sheet_row)
+                if len(person) == 3:
+                    name, poc, sr = person
+                else:
+                    name, poc = person[0], person[1]
+                    sr = 0
                 pc = poc_color(poc)
                 chips += (
                     f'<div style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size:0.82em;">'
                     f'<span style="width:8px; height:8px; border-radius:50%; background:{pc}; flex-shrink:0; display:inline-block;"></span>'
                     f'<span style="color:#1F2937; font-weight:500;">{name or "(no name)"}</span>'
+                    f'{sheet_row_icon(sr)}'
                     f'</div>'
                 )
             st.markdown(chips, unsafe_allow_html=True)
@@ -527,11 +573,7 @@ if nav == "Overview":
         ov_confirmed = df_filtered[df_filtered["Status"] == "Confirm"]
 
         # ─── Today's Activity ────────────────────────────────────────────
-        try:
-            from zoneinfo import ZoneInfo
-            _today_local = datetime.now(ZoneInfo("America/Los_Angeles")).date()
-        except Exception:
-            _today_local = date.today()
+        _today_local = get_today_la()
 
         today_contacts = df_all[df_all["_date_of_contact_parsed"] == _today_local]
         today_by_poc = today_contacts["POC"].value_counts()
@@ -831,11 +873,7 @@ elif nav == "Pipeline":
         poc_counts = df_by_contact["POC"].value_counts()
         poc_confirmed_counts = df_confirmed_filtered["POC"].value_counts()
         # Today's outreach per POC
-        try:
-            from zoneinfo import ZoneInfo
-            _today_pipe = datetime.now(ZoneInfo("America/Los_Angeles")).date()
-        except Exception:
-            _today_pipe = date.today()
+        _today_pipe = get_today_la()
         today_by_poc_pipe = df_all[df_all["_date_of_contact_parsed"] == _today_pipe]["POC"].value_counts()
 
         poc_list = [(p, c) for p, c in poc_counts.items() if p.strip()]
@@ -860,11 +898,7 @@ elif nav == "Pipeline":
         st.markdown("---")
 
         # ── Missed Posts Alert ────────────────────────────────────────
-        try:
-            from zoneinfo import ZoneInfo
-            _tl_today = datetime.now(ZoneInfo("America/Los_Angeles")).date()
-        except Exception:
-            _tl_today = date.today()
+        _tl_today = get_today_la()
 
         _confirmed_with_pd = df_filtered[
             (df_filtered["Status"] == "Confirm")
@@ -893,6 +927,7 @@ elif nav == "Pipeline":
                     f'<span style="width:7px; height:7px; border-radius:50%; background:{_mpc}; display:inline-block;"></span>'
                     f'<span style="color:#DC2626; font-weight:600;">{_mn}</span>'
                     f'<span style="color:#9CA3AF; font-size:0.85em;">({_md_str})</span>'
+                    f'{sheet_row_icon(_mr.get("_sheet_row", 0))}'
                     f'</span>'
                 )
             _mp_html += '</div></div>'
@@ -903,11 +938,11 @@ elif nav == "Pipeline":
         st.subheader("Production Timeline")
 
         # Merge overdue + in_progress into one view, grouped by stage
-        all_people = {}  # stage -> [(name, poc, days, is_overdue), ...]
-        for name, poc, stage, days, _ in overdue_list:
-            all_people.setdefault(stage, []).append((name, poc, days, True))
-        for name, poc, stage, days, _ in in_progress_list:
-            all_people.setdefault(stage, []).append((name, poc, days, False))
+        all_people = {}  # stage -> [(name, poc, days, is_overdue, sheet_row), ...]
+        for name, poc, stage, days, sr in overdue_list:
+            all_people.setdefault(stage, []).append((name, poc, days, True, sr))
+        for name, poc, stage, days, sr in in_progress_list:
+            all_people.setdefault(stage, []).append((name, poc, days, False, sr))
 
         # Order by COLLAB_STAGE_ORDER
         from dashboard_utils.charts import COLLAB_STAGE_ORDER
@@ -923,7 +958,7 @@ elif nav == "Pipeline":
                     f'padding:8px 0 4px; margin-top:4px;">{stage}</div>'
                 )
                 html += '<div style="display:flex; flex-wrap:wrap; gap:4px 18px; padding-bottom:6px;">'
-                for name, poc, days, is_over in people:
+                for name, poc, days, is_over, sr in people:
                     pc = poc_color(poc)
                     if is_over:
                         icon = f'<span style="color:#DC2626; font-size:0.85em;">⚠️</span>'
@@ -939,6 +974,7 @@ elif nav == "Pipeline":
                         f'{icon}'
                         f'<span style="color:#1F2937; font-weight:500;">{name}</span>'
                         f'{day_label}'
+                        f'{sheet_row_icon(sr)}'
                         f'</span>'
                     )
                 html += '</div>'
@@ -1228,7 +1264,10 @@ elif nav == "Pipeline":
 
                         _rows_html += (
                             f'<tr style="border-bottom:1px solid #F3F4F6;">'
-                            f'<td style="padding:8px 10px;"><span style="color:#1F2937; font-weight:500;">{_tname}</span></td>'
+                            f'<td style="padding:8px 10px;">'
+                            f'<span style="color:#1F2937; font-weight:500;">{_tname}</span>'
+                            f'{sheet_row_icon(_tr.get("_sheet_row", 0))}'
+                            f'</td>'
                             f'<td style="padding:8px 10px;">'
                             f'<span style="display:inline-flex; align-items:center; gap:5px;">'
                             f'<span style="width:7px; height:7px; border-radius:50%; background:{_tpc}; display:inline-block;"></span>'
@@ -1478,7 +1517,10 @@ elif nav == "Pipeline":
             )
 
         st.caption(f"{len(df_pipe)} influencers")
-        pipe_display = PIPELINE_DISPLAY_COLS + (["Days in Stage"] if "Days in Stage" in df_pipe.columns else [])
+        # Deep-link column so intern can jump from dashboard row to Sheet row.
+        df_pipe = df_pipe.copy()
+        df_pipe["Sheet"] = df_pipe["_sheet_row"].apply(sheet_row_link)
+        pipe_display = PIPELINE_DISPLAY_COLS + (["Days in Stage"] if "Days in Stage" in df_pipe.columns else []) + ["Sheet"]
         show_editable_table(
             df_pipe, pipe_display,
             {"Name": "text", "Contact": "text", "Type": "text",
@@ -1487,7 +1529,8 @@ elif nav == "Pipeline":
              "Contract Status": "select_contract",
              "Collaboration Stage": "select_collab",
              "Campaign Tag": "select_campaign",
-             "Confirm Date": "text", "POC": "text", "Notes": "text"},
+             "Confirm Date": "text", "POC": "text", "Notes": "text",
+             "Sheet": "link"},
             "pipeline",
         )
 
@@ -1511,11 +1554,7 @@ elif nav == "Content & Delivery":
         # Posting Schedule — Notion style
         df_with_date = df_content[df_content["_post_date_parsed"].notna()].copy()
         if not df_with_date.empty:
-            try:
-                from zoneinfo import ZoneInfo
-                _sched_today = datetime.now(ZoneInfo("America/Los_Angeles")).date()
-            except Exception:
-                _sched_today = date.today()
+            _sched_today = get_today_la()
 
             with st.expander("📅 Posting Schedule", expanded=True):
                 # Count missed posts for legend
@@ -2310,7 +2349,10 @@ ER uplift (content fit), Views vs Avg (reach lift), CPM (cost efficiency).
                       "Post ER", "Baseline ER", "Views vs Avg %", "ER vs Baseline %",
                       "CPM ($)", "Cost/Signup ($)", "Post Date"]
         indiv_cols = [c for c in indiv_cols if c in indiv.columns]
-        export_lines.append(indiv[indiv_cols].to_csv(index=False))
+        # Rename display labels before CSV export (fix Sheet typo in output)
+        export_lines.append(
+            indiv[indiv_cols].rename(columns=DISPLAY_LABELS).to_csv(index=False)
+        )
         export_lines.append("")
 
         # Segment aggregations
