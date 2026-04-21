@@ -19,8 +19,11 @@ from dashboard_utils.data_model import (
     STAGE_DEADLINES,
     PIPELINE_DISPLAY_COLS, CONTENT_DISPLAY_COLS,
     PAYMENT_PERF_DISPLAY_COLS,
+    FOLLOWER_BUCKET_ORDER,
     prepare_dataframe, filter_by_contact_date,
     filter_by_status, parse_date, get_timeline_status,
+    follower_bucket, parse_sheet_datetime, parse_sheet_date,
+    compute_overall_score,
 )
 from dashboard_utils.charts import (
     status_distribution_pie, collab_stage_detail, collab_stage_breakdown,
@@ -392,6 +395,42 @@ def poc_class(poc):
 
 def poc_color(poc):
     return POC_HEX.get(poc.strip().lower(), "#B197FC")
+
+
+def render_delivery_progress(stages_series, show_total=True):
+    """Return HTML for the Confirm → Post delivery progress bar.
+
+    `stages_series` is a pandas Series of Collaboration Stage strings.
+    Shared between Payment & Performance and Report tabs.
+    """
+    _stages = stages_series.str.strip()
+    _n_total = len(stages_series)
+    _n_posted = ((_stages == "Posted") | (_stages == "Approved for posting")).sum()
+    _n_production = ((_stages != "") & (_stages != "Posted") & (_stages != "Approved for posting")).sum()
+    _n_pending = _n_total - _n_posted - _n_production
+
+    _pct_posted = (_n_posted / _n_total * 100) if _n_total > 0 else 0
+    _pct_prod = (_n_production / _n_total * 100) if _n_total > 0 else 0
+    _pct_pend = (_n_pending / _n_total * 100) if _n_total > 0 else 0
+
+    total_span = (
+        f'&nbsp;&nbsp;·&nbsp;&nbsp;Total: {_n_total}' if show_total else ''
+    )
+    return (
+        f'<div style="margin-bottom:6px; font-size:0.82em; color:#6B7280;">'
+        f'<span style="color:#63E6BE; font-weight:600;">📦 Posted: {_n_posted}</span>'
+        f'&nbsp;&nbsp;·&nbsp;&nbsp;'
+        f'<span style="color:#3B82F6; font-weight:600;">🎬 In production: {_n_production}</span>'
+        f'&nbsp;&nbsp;·&nbsp;&nbsp;'
+        f'<span style="color:#F59E0B; font-weight:600;">📝 Pending: {_n_pending}</span>'
+        f'{total_span}'
+        f'</div>'
+        f'<div style="display:flex; height:12px; border-radius:6px; overflow:hidden; background:#F3F4F6; margin-bottom:16px;">'
+        f'<div style="width:{_pct_posted}%; background:#63E6BE;"></div>'
+        f'<div style="width:{_pct_prod}%; background:#3B82F6;"></div>'
+        f'<div style="width:{_pct_pend}%; background:#F59E0B;"></div>'
+        f'</div>'
+    )
 
 
 def render_kanban(df_src, show_poc_prefix=True):
@@ -952,20 +991,11 @@ elif nav == "Pipeline":
         # Those emails have no pixel embedded, so they'll always show as "not opened".
         TRACKING_START_DATE = date(2026, 4, 16)
 
-        def _parse_last_sent_date(val):
-            """Parse 'YYYY-MM-DD HH:MM' string → date, or None."""
-            if not val or not isinstance(val, str):
-                return None
-            try:
-                return datetime.strptime(val.strip(), "%Y-%m-%d %H:%M").date()
-            except (ValueError, AttributeError):
-                return None
-
         _sent_tracked_all = df_all[df_all["Email Message-ID"].str.strip() != ""] if "Email Message-ID" in df_all.columns else pd.DataFrame()
         # Floor: only count emails sent on/after tracking pixel deployment
         if not _sent_tracked_all.empty and "Last Email Sent" in _sent_tracked_all.columns:
             _sent_tracked_all = _sent_tracked_all[
-                _sent_tracked_all["Last Email Sent"].apply(_parse_last_sent_date).apply(
+                _sent_tracked_all["Last Email Sent"].apply(parse_sheet_date).apply(
                     lambda d: d is not None and d >= TRACKING_START_DATE
                 )
             ]
@@ -1012,17 +1042,9 @@ elif nav == "Pipeline":
                     _t_start = TRACKING_START_DATE
 
                 # Apply time filter to _sent_tracked_all
-                def _parse_last_sent(val):
-                    if not val or not isinstance(val, str):
-                        return None
-                    try:
-                        return datetime.strptime(val.strip(), "%Y-%m-%d %H:%M").date()
-                    except (ValueError, AttributeError):
-                        return None
-
                 if _t_start is not None:
                     _sent_tracked_all = _sent_tracked_all[
-                        _sent_tracked_all["Last Email Sent"].apply(_parse_last_sent).apply(
+                        _sent_tracked_all["Last Email Sent"].apply(parse_sheet_date).apply(
                             lambda d: d is not None and _t_start <= d <= _t_end
                         )
                     ]
@@ -1152,15 +1174,7 @@ elif nav == "Pipeline":
                     _tracked = _tracked[_tracked["Email Opened"].str.strip().str.lower() != "yes"]
 
                 # Parse sent dates
-                def _parse_sent(val):
-                    if not val or not isinstance(val, str):
-                        return None
-                    try:
-                        return datetime.strptime(val.strip(), "%Y-%m-%d %H:%M")
-                    except (ValueError, AttributeError):
-                        return None
-
-                _tracked["_sent_parsed"] = _tracked["Last Email Sent"].apply(_parse_sent)
+                _tracked["_sent_parsed"] = _tracked["Last Email Sent"].apply(parse_sheet_datetime)
                 if _use_date:
                     _tracked = _tracked[_tracked["_sent_parsed"].apply(
                         lambda d: d is not None and _start_track <= d.date() <= _end_track
@@ -1587,32 +1601,8 @@ elif nav == "Payment & Performance":
         st.info("No confirmed influencers.")
     else:
         # ─── Campaign Delivery Progress ─────────────────────────────
-        _stages = df_pay["Collaboration Stage"].str.strip()
-        _contract = df_pay.get("Contract Status", pd.Series(dtype=str)).str.strip()
-        _n_total = len(df_pay)
-        _n_posted = ((_stages == "Posted") | (_stages == "Approved for posting")).sum()
-        _n_production = ((_stages != "") & (_stages != "Posted") & (_stages != "Approved for posting")).sum()
-        _n_pending = _n_total - _n_posted - _n_production
-
-        _pct_posted = (_n_posted / _n_total * 100) if _n_total > 0 else 0
-        _pct_prod = (_n_production / _n_total * 100) if _n_total > 0 else 0
-        _pct_pend = (_n_pending / _n_total * 100) if _n_total > 0 else 0
-
         st.markdown(
-            f'<div style="margin-bottom:6px; font-size:0.82em; color:#6B7280;">'
-            f'<span style="color:#63E6BE; font-weight:600;">📦 Posted: {_n_posted}</span>'
-            f'&nbsp;&nbsp;·&nbsp;&nbsp;'
-            f'<span style="color:#3B82F6; font-weight:600;">🎬 In production: {_n_production}</span>'
-            f'&nbsp;&nbsp;·&nbsp;&nbsp;'
-            f'<span style="color:#F59E0B; font-weight:600;">📝 Pending: {_n_pending}</span>'
-            f'&nbsp;&nbsp;·&nbsp;&nbsp;'
-            f'Total: {_n_total}'
-            f'</div>'
-            f'<div style="display:flex; height:12px; border-radius:6px; overflow:hidden; background:#F3F4F6; margin-bottom:16px;">'
-            f'<div style="width:{_pct_posted}%; background:#63E6BE;"></div>'
-            f'<div style="width:{_pct_prod}%; background:#3B82F6;"></div>'
-            f'<div style="width:{_pct_pend}%; background:#F59E0B;"></div>'
-            f'</div>',
+            render_delivery_progress(df_pay["Collaboration Stage"], show_total=True),
             unsafe_allow_html=True,
         )
 
@@ -1722,16 +1712,8 @@ elif nav == "Payment & Performance":
         with _bd5:
             _fol = df_pay["_followers_num"].dropna()
             if not _fol.empty:
-                def _follower_bucket(n):
-                    if n < 10000: return "Nano (<10K)"
-                    elif n < 50000: return "Micro (10K-50K)"
-                    elif n < 100000: return "Mid (50K-100K)"
-                    elif n < 500000: return "Macro (100K-500K)"
-                    else: return "Mega (500K+)"
-                _fol_buckets = _fol.apply(_follower_bucket)
-                _bucket_order = ["Nano (<10K)", "Micro (10K-50K)", "Mid (50K-100K)",
-                                 "Macro (100K-500K)", "Mega (500K+)"]
-                _fol_counts = _fol_buckets.value_counts().reindex(_bucket_order).dropna().astype(int).reset_index()
+                _fol_buckets = _fol.apply(follower_bucket)
+                _fol_counts = _fol_buckets.value_counts().reindex(FOLLOWER_BUCKET_ORDER).dropna().astype(int).reset_index()
                 _fol_counts.columns = ["Followers", "Count"]
                 import plotly.graph_objects as go
                 _fig_fol = go.Figure(data=[go.Pie(
@@ -1797,13 +1779,10 @@ elif nav == "Payment & Performance":
         perf["ER vs Baseline %"] = perf.apply(_er_vs_baseline, axis=1) if "Post ER" in perf.columns else None
 
         # Compute Overall Score (composite 0-100) — same formula as Report tab
-        # 30% ER uplift + 40% Views vs Avg + 30% CPM (reversed)
         if "ER vs Baseline %" in perf.columns and "Views vs Avg %" in perf.columns and "CPM ($)" in perf.columns:
-            _er_pct_p = perf["ER vs Baseline %"].rank(pct=True, ascending=True)
-            _views_pct_p = perf["Views vs Avg %"].rank(pct=True, ascending=True)
-            _cpm_pct_p = perf["CPM ($)"].rank(pct=True, ascending=False)
-            perf["Score"] = (0.30 * _er_pct_p + 0.40 * _views_pct_p + 0.30 * _cpm_pct_p) * 100
-            perf["Score"] = perf["Score"].round(0)
+            perf["Score"] = compute_overall_score(
+                perf["ER vs Baseline %"], perf["Views vs Avg %"], perf["CPM ($)"]
+            ).round(0)
 
         # Only show rows with at least some data
         perf_display = perf.dropna(subset=["Cost ($)"])
@@ -1919,25 +1898,13 @@ elif nav == "Report":
             axis=1,
         )
         # Overall Score — composite of ER uplift, Views vs Avg, CPM (percentile-ranked)
-        # Weights: 30% ER uplift + 40% Views vs Avg + 30% CPM (reversed, low is good)
         # Uses Views vs Avg (not absolute) for cross-tier fairness (Nano vs Macro).
-        _er_pct = df_rep["_er_uplift"].rank(pct=True, ascending=True)
-        _views_pct = df_rep["_views_vs_avg"].rank(pct=True, ascending=True)
-        _cpm_pct = df_rep["_cpm"].rank(pct=True, ascending=False)  # low CPM = high pct
-        df_rep["_overall_score"] = (
-            0.30 * _er_pct + 0.40 * _views_pct + 0.30 * _cpm_pct
-        ) * 100
+        df_rep["_overall_score"] = compute_overall_score(
+            df_rep["_er_uplift"], df_rep["_views_vs_avg"], df_rep["_cpm"]
+        )
 
-        # Follower bucket function
-        def _fbucket(n):
-            if n is None or pd.isna(n):
-                return None
-            if n < 10000: return "Nano (<10K)"
-            if n < 50000: return "Micro (10K-50K)"
-            if n < 100000: return "Mid (50K-100K)"
-            if n < 500000: return "Macro (100K-500K)"
-            return "Mega (500K+)"
-        df_rep["_follower_bucket"] = df_rep["_followers_num"].apply(_fbucket)
+        # Follower bucket
+        df_rep["_follower_bucket"] = df_rep["_followers_num"].apply(follower_bucket)
 
         # ─── Executive Summary ────────────────────────────────────────
         st.subheader("📊 Executive Summary")
@@ -1952,25 +1919,9 @@ elif nav == "Report":
         selected_tag_str = selected_tag if selected_tag != "(All)" else "All Campaigns"
         st.caption(f"**{selected_tag_str}** · Posts dated {_range_str} · {len(df_rep)} confirmed influencers")
 
-        # Delivery progress bar (reuse logic)
-        _stages = df_rep["Collaboration Stage"].str.strip()
-        _n_total = len(df_rep)
-        _n_posted = ((_stages == "Posted") | (_stages == "Approved for posting")).sum()
-        _n_prod = ((_stages != "") & (_stages != "Posted") & (_stages != "Approved for posting")).sum()
-        _n_pend = _n_total - _n_posted - _n_prod
-        _pp = (_n_posted / _n_total * 100) if _n_total else 0
-        _pr = (_n_prod / _n_total * 100) if _n_total else 0
-        _pe = (_n_pend / _n_total * 100) if _n_total else 0
+        # Delivery progress bar
         st.markdown(
-            f'<div style="margin-bottom:6px; font-size:0.82em; color:#6B7280;">'
-            f'<span style="color:#63E6BE; font-weight:600;">📦 Posted: {_n_posted}</span>&nbsp;&nbsp;·&nbsp;&nbsp;'
-            f'<span style="color:#3B82F6; font-weight:600;">🎬 In production: {_n_prod}</span>&nbsp;&nbsp;·&nbsp;&nbsp;'
-            f'<span style="color:#F59E0B; font-weight:600;">📝 Pending: {_n_pend}</span></div>'
-            f'<div style="display:flex; height:12px; border-radius:6px; overflow:hidden; background:#F3F4F6; margin-bottom:16px;">'
-            f'<div style="width:{_pp}%; background:#63E6BE;"></div>'
-            f'<div style="width:{_pr}%; background:#3B82F6;"></div>'
-            f'<div style="width:{_pe}%; background:#F59E0B;"></div>'
-            f'</div>',
+            render_delivery_progress(df_rep["Collaboration Stage"], show_total=False),
             unsafe_allow_html=True,
         )
 

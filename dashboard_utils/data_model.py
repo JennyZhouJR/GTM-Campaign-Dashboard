@@ -185,6 +185,69 @@ def cast_numeric(val):
     return None
 
 
+def follower_bucket(n):
+    """Return follower-count bucket label for n. Returns None if n is None/NaN.
+
+    Shared between Payment & Performance and Report tabs.
+    """
+    if n is None:
+        return None
+    try:
+        if pd.isna(n):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if n < 10000:
+        return "Nano (<10K)"
+    if n < 50000:
+        return "Micro (10K-50K)"
+    if n < 100000:
+        return "Mid (50K-100K)"
+    if n < 500000:
+        return "Macro (100K-500K)"
+    return "Mega (500K+)"
+
+
+FOLLOWER_BUCKET_ORDER = [
+    "Nano (<10K)", "Micro (10K-50K)", "Mid (50K-100K)",
+    "Macro (100K-500K)", "Mega (500K+)",
+]
+
+
+def parse_sheet_datetime(val):
+    """Parse Google Sheet 'YYYY-MM-DD HH:MM' timestamp to datetime. Returns None on failure.
+
+    Callers that want a date can do `.date()` on the result (or use parse_sheet_date).
+    """
+    if not val or not isinstance(val, str):
+        return None
+    try:
+        return datetime.strptime(val.strip(), "%Y-%m-%d %H:%M")
+    except (ValueError, AttributeError):
+        return None
+
+
+def parse_sheet_date(val):
+    """Parse Google Sheet 'YYYY-MM-DD HH:MM' timestamp to date. Returns None on failure."""
+    dt = parse_sheet_datetime(val)
+    return dt.date() if dt else None
+
+
+def compute_overall_score(er_uplift, views_vs_avg, cpm):
+    """Composite 0-100 performance score.
+
+    0.30 × ER uplift percentile + 0.40 × Views vs Avg percentile
+    + 0.30 × CPM percentile (reversed — low CPM ranks high).
+
+    Inputs are pandas Series (same index). Returns a Series of floats 0-100.
+    Shared between Payment & Performance and Report tabs.
+    """
+    er_pct = er_uplift.rank(pct=True, ascending=True)
+    views_pct = views_vs_avg.rank(pct=True, ascending=True)
+    cpm_pct = cpm.rank(pct=True, ascending=False)  # low CPM = high pct
+    return (0.30 * er_pct + 0.40 * views_pct + 0.30 * cpm_pct) * 100
+
+
 def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """Add parsed/typed columns for filtering and display."""
     if df.empty:
