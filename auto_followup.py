@@ -20,6 +20,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 from dashboard_utils.email_client import check_reply_status, send_followup, REPLY_YES, REPLY_NO, REPLY_UNKNOWN
 from dashboard_utils.data_model import COL, HEADER_NAMES
+from dashboard_utils.gsheet_client import _retry
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -61,7 +62,11 @@ def load_data(ws):
         return pd.DataFrame()
 
     headers = all_values[0]
-    n_cols = max(len(headers), 34)
+    # Hardcode A1 header (sometimes blank in Sheet) — matches gsheet_client.py
+    if headers and not headers[0].strip():
+        headers[0] = "Date of Contact"
+    # At least 41 columns (A-AO) to cover all tracking columns: AF-AO
+    n_cols = max(len(headers), 41)
     padded_headers = headers + [f"Col_{i}" for i in range(len(headers), n_cols)]
 
     rows = []
@@ -169,10 +174,11 @@ def run_followups():
                 to_email, name, poc, msg_id, followup_num,
             )
             now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-            ws.update_cell(sheet_row, COL["last_email_sent"] + 1, now_str)
-            ws.update_cell(sheet_row, COL["followup_count"] + 1, str(followup_num))
+            # Wrap Sheets API writes in _retry to handle transient 429/5xx errors
+            _retry(lambda: ws.update_cell(sheet_row, COL["last_email_sent"] + 1, now_str))
+            _retry(lambda: ws.update_cell(sheet_row, COL["followup_count"] + 1, str(followup_num)))
             # Update Message-ID to follow-up's new ID so tracking pixel matches on open
-            ws.update_cell(sheet_row, COL["email_msg_id"] + 1, new_msg_id)
+            _retry(lambda: ws.update_cell(sheet_row, COL["email_msg_id"] + 1, new_msg_id))
             sent_count += 1
             print(f"  ✅ {name} — Follow-Up #{followup_num} sent from {sender_email}")
             time.sleep(1)  # rate limit
@@ -214,12 +220,12 @@ def run_followups():
         try:
             rs = check_reply_status(poc_account["email"], app_password, msg_id)
             if rs == REPLY_YES and current_replied.lower() != "yes":
-                ws.update_cell(sheet_row, COL["email_replied"] + 1, "Yes")
+                _retry(lambda: ws.update_cell(sheet_row, COL["email_replied"] + 1, "Yes"))
                 replied_updates += 1
                 time.sleep(0.3)  # gentle rate limit for Sheets API
             elif rs == REPLY_NO and current_replied == "":
                 # Only write "No" if the cell is empty — don't overwrite manual edits
-                ws.update_cell(sheet_row, COL["email_replied"] + 1, "No")
+                _retry(lambda: ws.update_cell(sheet_row, COL["email_replied"] + 1, "No"))
                 replied_updates += 1
                 time.sleep(0.3)
             # REPLY_UNKNOWN: skip, try tomorrow

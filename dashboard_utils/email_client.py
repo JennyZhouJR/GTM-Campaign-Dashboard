@@ -188,13 +188,17 @@ def check_reply_status(sender_email: str, app_password: str, original_msg_id: st
             # Fallback if All Mail isn't available (e.g. non-Gmail or renamed label)
             mail.select("INBOX")
 
+        # Escape quotes in Message-ID to prevent IMAP search injection / malformed queries.
+        # Python's make_msgid() won't produce quotes, but defensive escaping is cheap.
+        _safe_id = original_msg_id.replace('"', '\\"')
+
         # Search for emails that reference the original message
-        _, data = mail.search(None, f'(HEADER In-Reply-To "{original_msg_id}")')
+        _, data = mail.search(None, f'(HEADER In-Reply-To "{_safe_id}")')
         if data and data[0]:
             return REPLY_YES
 
         # Also check References header (for threads with multiple replies)
-        _, data = mail.search(None, f'(HEADER References "{original_msg_id}")')
+        _, data = mail.search(None, f'(HEADER References "{_safe_id}")')
         if data and data[0]:
             return REPLY_YES
 
