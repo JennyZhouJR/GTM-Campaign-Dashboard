@@ -526,7 +526,7 @@ st.caption("  \u00b7  ".join(_subtitle_parts))
 
 # ─── Navigation ──────────────────────────────────────────────────────────────
 
-NAV_OPTIONS = ["Overview", "Pipeline", "Content & Delivery", "Payment & Performance", "Report"]
+NAV_OPTIONS = ["Overview", "Pipeline", "Content & Delivery", "Payment", "Report"]
 
 nav = st.pills(
     "nav", NAV_OPTIONS,
@@ -836,19 +836,21 @@ if nav == "Overview":
                 st.plotly_chart(fig, use_container_width=True, key="ov_collab")
 
         st.markdown("---")
-        c3, c4 = st.columns(2)
-        with c3:
-            st.markdown("**ER% Distribution**")
-            st.caption("🏷️ Campaign Tag + date range · X = ER%, Y = # influencers · Green = median, red = mean")
-            fig = er_histogram(ov_confirmed)
-            if fig:
-                st.plotly_chart(fig, use_container_width=True, key="ov_er")
-        with c4:
-            st.markdown("**Followers vs ER%**")
-            st.caption("🏷️ Campaign Tag + date range · Top-left = high ER with fewer followers (great value)")
-            fig = followers_vs_er_scatter(ov_confirmed)
-            if fig:
-                st.plotly_chart(fig, use_container_width=True, key="ov_fver")
+        # Collapsed by default — these are deep-dive views, not daily-read metrics
+        with st.expander("📊 ER Analysis", expanded=False):
+            c3, c4 = st.columns(2)
+            with c3:
+                st.markdown("**ER% Distribution**")
+                st.caption("🏷️ Campaign Tag + date range · X = ER%, Y = # influencers · Green = median, red = mean")
+                fig = er_histogram(ov_confirmed)
+                if fig:
+                    st.plotly_chart(fig, use_container_width=True, key="ov_er")
+            with c4:
+                st.markdown("**Followers vs ER%**")
+                st.caption("🏷️ Campaign Tag + date range · Top-left = high ER with fewer followers (great value)")
+                fig = followers_vs_er_scatter(ov_confirmed)
+                if fig:
+                    st.plotly_chart(fig, use_container_width=True, key="ov_fver")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1631,10 +1633,10 @@ elif nav == "Content & Delivery":
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Payment & Performance
+# Payment
 # ═══════════════════════════════════════════════════════════════════════════════
 
-elif nav == "Payment & Performance":
+elif nav == "Payment":
     df_pay = df_filtered[df_filtered["Status"] == "Confirm"].copy()
     if df_pay.empty:
         st.info("No confirmed influencers.")
@@ -1664,204 +1666,6 @@ elif nav == "Payment & Performance":
         else:
             m5.metric("Avg CPM", "N/A")
 
-        # ─── Influencer Profile Breakdown ────────────────────────────
-        st.markdown("---")
-        st.subheader("Influencer Profile Breakdown")
-        _bd1, _bd2, _bd3 = st.columns(3)
-        _breakdown_palette = ["#748FFC", "#FF922B", "#63E6BE", "#F06595", "#B197FC",
-                              "#FCC419", "#22D3EE", "#A9E34B", "#FF6B6B", "#DDA0DD"]
-        for _col_ui, _col_name, _title in [
-            (_bd1, "Type", "Type"),
-            (_bd2, "Job Function", "Job Function"),
-            (_bd3, "Senority", "Seniority"),
-        ]:
-            with _col_ui:
-                if _col_name in df_pay.columns:
-                    _vals = df_pay[_col_name].str.strip()
-                    _vals = _vals[_vals != ""]
-                    if not _vals.empty:
-                        _counts = _vals.value_counts().reset_index()
-                        _counts.columns = [_title, "Count"]
-                        import plotly.graph_objects as go
-                        _fig = go.Figure(data=[go.Pie(
-                            labels=_counts[_title],
-                            values=_counts["Count"],
-                            marker=dict(colors=_breakdown_palette[:len(_counts)],
-                                        line=dict(color="#fff", width=2)),
-                            textinfo="value+percent",
-                            texttemplate="%{value} (%{percent})",
-                            textposition="inside",
-                            insidetextorientation="horizontal",
-                            hole=0.45,
-                            textfont=dict(size=10, family="DM Sans, Inter, sans-serif", color="#fff"),
-                        )])
-                        _fig.update_layout(
-                            title=dict(text=_title, font=dict(size=13)),
-                            margin=dict(t=36, b=60, l=10, r=10),
-                            height=320,
-                            showlegend=True,
-                            legend=dict(orientation="h", yanchor="top", y=-0.05,
-                                        xanchor="center", x=0.5, font=dict(size=10)),
-                            font=dict(family="DM Sans, Inter, sans-serif"),
-                            paper_bgcolor="rgba(0,0,0,0)",
-                        )
-                        st.plotly_chart(_fig, use_container_width=True, key=f"bd_{_col_name}")
-                    else:
-                        st.info(f"No {_title} data.")
-                else:
-                    st.info(f"No {_title} column.")
-
-        # Second row: Content Type + Followers distribution
-        _bd4, _bd5 = st.columns(2)
-        # Content Type donut
-        with _bd4:
-            if "Content Type" in df_pay.columns:
-                _ct_vals = df_pay["Content Type"].str.strip()
-                _ct_vals = _ct_vals[_ct_vals != ""]
-                if not _ct_vals.empty:
-                    _ct_counts = _ct_vals.value_counts().reset_index()
-                    _ct_counts.columns = ["Content Type", "Count"]
-                    import plotly.graph_objects as go
-                    _fig_ct = go.Figure(data=[go.Pie(
-                        labels=_ct_counts["Content Type"],
-                        values=_ct_counts["Count"],
-                        marker=dict(colors=_breakdown_palette[:len(_ct_counts)],
-                                    line=dict(color="#fff", width=2)),
-                        textinfo="value+percent",
-                        texttemplate="%{value} (%{percent})",
-                        textposition="inside",
-                        insidetextorientation="horizontal",
-                        hole=0.45,
-                        textfont=dict(size=10, family="DM Sans, Inter, sans-serif", color="#fff"),
-                    )])
-                    _fig_ct.update_layout(
-                        title=dict(text="Content Type", font=dict(size=13)),
-                        margin=dict(t=36, b=60, l=10, r=10),
-                        height=320,
-                        showlegend=True,
-                        legend=dict(orientation="h", yanchor="top", y=-0.05,
-                                    xanchor="center", x=0.5, font=dict(size=10)),
-                        font=dict(family="DM Sans, Inter, sans-serif"),
-                        paper_bgcolor="rgba(0,0,0,0)",
-                    )
-                    st.plotly_chart(_fig_ct, use_container_width=True, key="bd_content_type")
-                else:
-                    st.info("No Content Type data.")
-        # Followers distribution donut (bucketed)
-        with _bd5:
-            _fol = df_pay["_followers_num"].dropna()
-            if not _fol.empty:
-                _fol_buckets = _fol.apply(follower_bucket)
-                _fol_counts = _fol_buckets.value_counts().reindex(FOLLOWER_BUCKET_ORDER).dropna().astype(int).reset_index()
-                _fol_counts.columns = ["Followers", "Count"]
-                import plotly.graph_objects as go
-                _fig_fol = go.Figure(data=[go.Pie(
-                    labels=_fol_counts["Followers"],
-                    values=_fol_counts["Count"],
-                    marker=dict(colors=["#B197FC", "#748FFC", "#22D3EE", "#FF922B", "#FF6B6B"][:len(_fol_counts)],
-                                line=dict(color="#fff", width=2)),
-                    textinfo="value+percent",
-                    texttemplate="%{value} (%{percent})",
-                    textposition="inside",
-                    insidetextorientation="horizontal",
-                    hole=0.45,
-                    textfont=dict(size=10, family="DM Sans, Inter, sans-serif", color="#fff"),
-                )])
-                _fig_fol.update_layout(
-                    title=dict(text="Followers Distribution", font=dict(size=13)),
-                    margin=dict(t=36, b=60, l=10, r=10),
-                    height=320,
-                    showlegend=True,
-                    legend=dict(orientation="h", yanchor="top", y=-0.05,
-                                xanchor="center", x=0.5, font=dict(size=10)),
-                    font=dict(family="DM Sans, Inter, sans-serif"),
-                    paper_bgcolor="rgba(0,0,0,0)",
-                )
-                st.plotly_chart(_fig_fol, use_container_width=True, key="bd_followers")
-            else:
-                st.info("No Followers data.")
-
-        # ─── Performance Ranking ─────────────────────────────────────
-        st.markdown("---")
-        st.subheader("Performance Ranking")
-        _perf_cols = ["Name", "POC", "Post Link", "Content Type", "Type",
-                      "Senority", "Job Function", "_price_num", "_views_24hr_num", "_signups_num",
-                      "_avg_impressions_num", "_post_er_num", "_baseline_er_num"]
-        _perf_available = [c for c in _perf_cols if c in df_pay.columns]
-        perf = df_pay[_perf_available].copy()
-        perf = perf.rename(columns={
-            "_price_num": "Cost ($)", "_views_24hr_num": "24hr Views",
-            "_signups_num": "Signups", "Senority": "Seniority",
-            "_avg_impressions_num": "Avg Views", "_post_er_num": "Post ER",
-            "_baseline_er_num": "Baseline ER",
-        })
-        # Compute CPM and Cost/Signup
-        perf["CPM ($)"] = perf.apply(
-            lambda r: round(r["Cost ($)"] / r["24hr Views"] * 1000, 2)
-            if pd.notna(r.get("Cost ($)")) and pd.notna(r.get("24hr Views")) and r["24hr Views"] > 0 else None, axis=1)
-        perf["Cost/Signup ($)"] = perf.apply(
-            lambda r: round(r["Cost ($)"] / r["Signups"], 2)
-            if pd.notna(r.get("Cost ($)")) and pd.notna(r.get("Signups")) and r["Signups"] > 0 else None, axis=1)
-        # Compute Views vs Avg (%) — this post vs their historical avg impressions
-        def _views_vs_avg(r):
-            v, a = r.get("24hr Views"), r.get("Avg Views")
-            if pd.notna(v) and pd.notna(a) and a > 0:
-                return round((v / a - 1) * 100, 1)
-            return None
-        perf["Views vs Avg %"] = perf.apply(_views_vs_avg, axis=1) if "Avg Views" in perf.columns else None
-        # Compute ER vs Baseline (%)
-        def _er_vs_baseline(r):
-            p, b = r.get("Post ER"), r.get("Baseline ER")
-            if pd.notna(p) and pd.notna(b) and b > 0:
-                return round((p / b - 1) * 100, 1)
-            return None
-        perf["ER vs Baseline %"] = perf.apply(_er_vs_baseline, axis=1) if "Post ER" in perf.columns else None
-
-        # Compute Overall Score (composite 0-100) — same formula as Report tab
-        if "ER vs Baseline %" in perf.columns and "Views vs Avg %" in perf.columns and "CPM ($)" in perf.columns:
-            perf["Score"] = compute_overall_score(
-                perf["ER vs Baseline %"], perf["Views vs Avg %"], perf["CPM ($)"]
-            ).round(0)
-
-        # Only show rows with at least some data
-        perf_display = perf.dropna(subset=["Cost ($)"])
-        if not perf_display.empty:
-            # Sort toggle — Overall Score is default
-            _sort_mode = st.pills(
-                "Sort by",
-                ["By Overall Score", "By CPM (best value)", "By 24hr Views"],
-                default="By Overall Score",
-                key="perf_sort",
-            )
-            if _sort_mode == "By 24hr Views":
-                perf_sorted = perf_display.sort_values("24hr Views", ascending=False, na_position="last")
-            elif _sort_mode == "By CPM (best value)":
-                perf_sorted = perf_display.sort_values("CPM ($)", ascending=True, na_position="last")
-            else:  # By Overall Score
-                _sort_col = "Score" if "Score" in perf_display.columns else "CPM ($)"
-                _asc = False if _sort_col == "Score" else True
-                perf_sorted = perf_display.sort_values(_sort_col, ascending=_asc, na_position="last")
-            st.caption("ℹ️ Overall Score = 30% ER uplift + 40% Views vs Avg + 30% CPM (reversed). See Report tab for full formula.")
-            _perf_display_order = ["Name", "POC", "Score", "Content Type", "Type", "Seniority", "Job Function",
-                                   "Cost ($)", "24hr Views", "Avg Views", "Views vs Avg %",
-                                   "Post ER", "Baseline ER", "ER vs Baseline %",
-                                   "Signups", "CPM ($)", "Cost/Signup ($)", "Post Link"]
-            _perf_display_order = [c for c in _perf_display_order if c in perf_sorted.columns]
-            st.dataframe(
-                perf_sorted[_perf_display_order],
-                use_container_width=True, hide_index=True,
-                column_config={
-                    "Post Link": st.column_config.LinkColumn("Post Link"),
-                    "Score": st.column_config.NumberColumn("Score", format="%.0f", help="0-100 composite: 30% ER uplift + 40% Views vs Avg + 30% CPM"),
-                    "Views vs Avg %": st.column_config.NumberColumn("Views vs Avg %", format="%+.1f%%"),
-                    "ER vs Baseline %": st.column_config.NumberColumn("ER vs Baseline %", format="%+.1f%%"),
-                    "Post ER": st.column_config.NumberColumn("Post ER", format="%.2f%%"),
-                    "Baseline ER": st.column_config.NumberColumn("Baseline ER", format="%.2f%%"),
-                },
-            )
-        else:
-            st.info("Performance data will appear after cost and views/signups are entered.")
-
         # Detail table
         st.markdown("---")
         st.subheader("Detail Table")
@@ -1874,21 +1678,6 @@ elif nav == "Payment & Performance":
              "Type": "text", "Senority": "text", "Job Function": "text", "Content Type": "text"},
             "payment",
         )
-
-        # Performance Charts (merged from Retrospective)
-        st.markdown("---")
-        st.subheader("Performance Charts")
-        pc1, pc2 = st.columns(2)
-        with pc1:
-            fig = cost_vs_views_scatter(df_pay)
-            if fig:
-                st.plotly_chart(fig, use_container_width=True, key="pay_cost_views")
-            else:
-                st.info("Cost vs Views will appear after campaign data is entered.")
-        with pc2:
-            fig = followers_vs_er_scatter(df_pay)
-            if fig:
-                st.plotly_chart(fig, use_container_width=True, key="pay_fver")
 
         # Export
         st.markdown("---")
@@ -2188,6 +1977,124 @@ ER uplift (content fit), Views vs Avg (reach lift), CPM (cost efficiency).
             html += '</tbody></table>'
             st.markdown(html, unsafe_allow_html=True)
 
+        # ─── Profile Breakdown (campaign composition) ────────────────
+        st.markdown("---")
+        st.subheader("👥 Profile Breakdown")
+        st.caption("What this campaign looked like — distribution across audience dimensions.")
+        _bd1, _bd2, _bd3 = st.columns(3)
+        _breakdown_palette = ["#748FFC", "#FF922B", "#63E6BE", "#F06595", "#B197FC",
+                              "#FCC419", "#22D3EE", "#A9E34B", "#FF6B6B", "#DDA0DD"]
+        for _col_ui, _col_name, _title in [
+            (_bd1, "Type", "Type"),
+            (_bd2, "Job Function", "Job Function"),
+            (_bd3, "Senority", "Seniority"),
+        ]:
+            with _col_ui:
+                if _col_name in df_rep.columns:
+                    _vals = df_rep[_col_name].str.strip()
+                    _vals = _vals[_vals != ""]
+                    if not _vals.empty:
+                        _counts = _vals.value_counts().reset_index()
+                        _counts.columns = [_title, "Count"]
+                        import plotly.graph_objects as go
+                        _fig = go.Figure(data=[go.Pie(
+                            labels=_counts[_title],
+                            values=_counts["Count"],
+                            marker=dict(colors=_breakdown_palette[:len(_counts)],
+                                        line=dict(color="#fff", width=2)),
+                            textinfo="value+percent",
+                            texttemplate="%{value} (%{percent})",
+                            textposition="inside",
+                            insidetextorientation="horizontal",
+                            hole=0.45,
+                            textfont=dict(size=10, family="DM Sans, Inter, sans-serif", color="#fff"),
+                        )])
+                        _fig.update_layout(
+                            title=dict(text=_title, font=dict(size=13)),
+                            margin=dict(t=36, b=60, l=10, r=10),
+                            height=320,
+                            showlegend=True,
+                            legend=dict(orientation="h", yanchor="top", y=-0.05,
+                                        xanchor="center", x=0.5, font=dict(size=10)),
+                            font=dict(family="DM Sans, Inter, sans-serif"),
+                            paper_bgcolor="rgba(0,0,0,0)",
+                        )
+                        st.plotly_chart(_fig, use_container_width=True, key=f"rep_bd_{_col_name}")
+                    else:
+                        st.info(f"No {_title} data.")
+                else:
+                    st.info(f"No {_title} column.")
+
+        # Second row: Content Type + Followers distribution
+        _bd4, _bd5 = st.columns(2)
+        # Content Type donut
+        with _bd4:
+            if "Content Type" in df_rep.columns:
+                _ct_vals = df_rep["Content Type"].str.strip()
+                _ct_vals = _ct_vals[_ct_vals != ""]
+                if not _ct_vals.empty:
+                    _ct_counts = _ct_vals.value_counts().reset_index()
+                    _ct_counts.columns = ["Content Type", "Count"]
+                    import plotly.graph_objects as go
+                    _fig_ct = go.Figure(data=[go.Pie(
+                        labels=_ct_counts["Content Type"],
+                        values=_ct_counts["Count"],
+                        marker=dict(colors=_breakdown_palette[:len(_ct_counts)],
+                                    line=dict(color="#fff", width=2)),
+                        textinfo="value+percent",
+                        texttemplate="%{value} (%{percent})",
+                        textposition="inside",
+                        insidetextorientation="horizontal",
+                        hole=0.45,
+                        textfont=dict(size=10, family="DM Sans, Inter, sans-serif", color="#fff"),
+                    )])
+                    _fig_ct.update_layout(
+                        title=dict(text="Content Type", font=dict(size=13)),
+                        margin=dict(t=36, b=60, l=10, r=10),
+                        height=320,
+                        showlegend=True,
+                        legend=dict(orientation="h", yanchor="top", y=-0.05,
+                                    xanchor="center", x=0.5, font=dict(size=10)),
+                        font=dict(family="DM Sans, Inter, sans-serif"),
+                        paper_bgcolor="rgba(0,0,0,0)",
+                    )
+                    st.plotly_chart(_fig_ct, use_container_width=True, key="rep_bd_content_type")
+                else:
+                    st.info("No Content Type data.")
+        # Followers distribution donut (bucketed)
+        with _bd5:
+            _fol = df_rep["_followers_num"].dropna()
+            if not _fol.empty:
+                _fol_buckets = _fol.apply(follower_bucket)
+                _fol_counts = _fol_buckets.value_counts().reindex(FOLLOWER_BUCKET_ORDER).dropna().astype(int).reset_index()
+                _fol_counts.columns = ["Followers", "Count"]
+                import plotly.graph_objects as go
+                _fig_fol = go.Figure(data=[go.Pie(
+                    labels=_fol_counts["Followers"],
+                    values=_fol_counts["Count"],
+                    marker=dict(colors=["#B197FC", "#748FFC", "#22D3EE", "#FF922B", "#FF6B6B"][:len(_fol_counts)],
+                                line=dict(color="#fff", width=2)),
+                    textinfo="value+percent",
+                    texttemplate="%{value} (%{percent})",
+                    textposition="inside",
+                    insidetextorientation="horizontal",
+                    hole=0.45,
+                    textfont=dict(size=10, family="DM Sans, Inter, sans-serif", color="#fff"),
+                )])
+                _fig_fol.update_layout(
+                    title=dict(text="Followers Distribution", font=dict(size=13)),
+                    margin=dict(t=36, b=60, l=10, r=10),
+                    height=320,
+                    showlegend=True,
+                    legend=dict(orientation="h", yanchor="top", y=-0.05,
+                                xanchor="center", x=0.5, font=dict(size=10)),
+                    font=dict(family="DM Sans, Inter, sans-serif"),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                )
+                st.plotly_chart(_fig_fol, use_container_width=True, key="rep_bd_followers")
+            else:
+                st.info("No Followers data.")
+
         # ─── Segment Analysis — 4 dimensions ──────────────────────────
         st.markdown("---")
         st.subheader("📐 What Worked Best")
@@ -2209,6 +2116,80 @@ ER uplift (content fit), Views vs Avg (reach lift), CPM (cost efficiency).
         st.markdown("##### By Seniority")
         sen_stats = _segment_stats(df_rep, "Senority")
         _segment_display(sen_stats, "Seniority", first_col_name="Senority")
+
+        # ─── Performance Ranking (full table, sortable) ──────────────
+        st.markdown("---")
+        st.subheader("🏁 Performance Ranking")
+        st.caption("Every post ranked. Overall Score = 30% ER uplift + 40% Views vs Avg + 30% CPM (reversed).")
+
+        # Select only the columns we'll use — avoids duplicate names when
+        # renaming (df_rep has BOTH "24hr Views" string col AND _views_24hr_num
+        # numeric col; renaming the latter would collide with the former).
+        _perf_cols = ["Name", "POC", "Post Link", "Content Type", "Type",
+                      "Senority", "Job Function",
+                      "_price_num", "_views_24hr_num", "_signups_num",
+                      "_avg_impressions_num", "_post_er_num", "_baseline_er_num",
+                      "_cpm", "_cost_per_signup", "_views_vs_avg",
+                      "_er_uplift", "_overall_score"]
+        _perf_available = [c for c in _perf_cols if c in df_rep.columns]
+        _perf = df_rep[df_rep["_price_num"].notna()][_perf_available].copy()
+        if not _perf.empty:
+            # Reuse df_rep's pre-computed columns (no need to recompute).
+            # Use pd.to_numeric(errors="coerce") to guard against Python 3.14's
+            # stricter round() that rejects None.
+            _perf["Score"] = pd.to_numeric(_perf["_overall_score"], errors="coerce").round(0)
+            _perf["CPM ($)"] = pd.to_numeric(_perf["_cpm"], errors="coerce").round(2)
+            _perf["Cost/Signup ($)"] = pd.to_numeric(_perf["_cost_per_signup"], errors="coerce").round(2)
+            _perf["Views vs Avg %"] = pd.to_numeric(_perf["_views_vs_avg"], errors="coerce").round(1)
+            _perf["ER vs Baseline %"] = pd.to_numeric(_perf["_er_uplift"], errors="coerce").round(1)
+            # Drop the numeric helpers to avoid confusion in the final display
+            _perf = _perf.drop(columns=[c for c in ["_cpm", "_cost_per_signup",
+                                                     "_views_vs_avg", "_er_uplift",
+                                                     "_overall_score"]
+                                        if c in _perf.columns])
+            _perf = _perf.rename(columns={
+                "_price_num": "Cost ($)",
+                "_views_24hr_num": "24hr Views",
+                "_signups_num": "Signups",
+                "Senority": "Seniority",
+                "_avg_impressions_num": "Avg Views",
+                "_post_er_num": "Post ER",
+                "_baseline_er_num": "Baseline ER",
+            })
+
+            _sort_mode = st.pills(
+                "Sort by",
+                ["By Overall Score", "By CPM (best value)", "By 24hr Views"],
+                default="By Overall Score",
+                key="rep_perf_sort",
+            )
+            if _sort_mode == "By 24hr Views":
+                _perf_sorted = _perf.sort_values("24hr Views", ascending=False, na_position="last")
+            elif _sort_mode == "By CPM (best value)":
+                _perf_sorted = _perf.sort_values("CPM ($)", ascending=True, na_position="last")
+            else:
+                _perf_sorted = _perf.sort_values("Score", ascending=False, na_position="last")
+
+            _perf_display_order = ["Name", "POC", "Score", "Content Type", "Type", "Seniority", "Job Function",
+                                   "Cost ($)", "24hr Views", "Avg Views", "Views vs Avg %",
+                                   "Post ER", "Baseline ER", "ER vs Baseline %",
+                                   "Signups", "CPM ($)", "Cost/Signup ($)", "Post Link"]
+            _perf_display_order = [c for c in _perf_display_order if c in _perf_sorted.columns]
+            st.dataframe(
+                _perf_sorted[_perf_display_order],
+                use_container_width=True, hide_index=True,
+                column_config={
+                    "Post Link": st.column_config.LinkColumn("Post Link"),
+                    "Score": st.column_config.NumberColumn("Score", format="%.0f",
+                        help="0-100 composite: 30% ER uplift + 40% Views vs Avg + 30% CPM"),
+                    "Views vs Avg %": st.column_config.NumberColumn("Views vs Avg %", format="%+.1f%%"),
+                    "ER vs Baseline %": st.column_config.NumberColumn("ER vs Baseline %", format="%+.1f%%"),
+                    "Post ER": st.column_config.NumberColumn("Post ER", format="%.2f%%"),
+                    "Baseline ER": st.column_config.NumberColumn("Baseline ER", format="%.2f%%"),
+                },
+            )
+        else:
+            st.info("Performance data will appear after cost and views/signups are entered.")
 
         # ─── Best Archetype ──────────────────────────────────────────
         st.markdown("---")
@@ -2324,6 +2305,21 @@ ER uplift (content fit), Views vs Avg (reach lift), CPM (cost efficiency).
             )
         else:
             st.info("Not enough data for insights yet — fill in more campaign results.")
+
+        # ─── Performance Charts (scatter) ─────────────────────────────
+        st.markdown("---")
+        st.subheader("📈 Performance Charts")
+        pc1, pc2 = st.columns(2)
+        with pc1:
+            fig = cost_vs_views_scatter(df_rep)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True, key="rep_cost_views")
+            else:
+                st.info("Cost vs Views will appear after campaign data is entered.")
+        with pc2:
+            fig = followers_vs_er_scatter(df_rep)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True, key="rep_fver")
 
         # ─── CSV Export ──────────────────────────────────────────────
         st.markdown("---")
