@@ -27,3 +27,7 @@ nohup.out
 
 # Claude Code local state (scheduled tasks, session metadata)
 .claude/
+
+# Local design scratch / reference (not part of the app)
+design_mockups/
+design_previews/

@@ -80,80 +80,295 @@ if not _check_password():
 
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-    /* Global font */
-    html, body, [class*="css"] { font-family: 'DM Sans', sans-serif !important; }
+    /* ─── Design tokens ────────────────────────────────────────── */
+    :root {
+        --bg: #ffffff;
+        --bg-alt: #f6f5f4;
+        --bg-subtle: #fafaf9;
+        --text: rgba(0,0,0,0.95);
+        --text-2: #615d59;
+        --text-3: #a39e98;
+        --border: rgba(0,0,0,0.1);
+        --border-subtle: rgba(0,0,0,0.05);
 
-    /* Typography */
-    .stMetric label {
-        font-size: 0.78em !important; color: #6B7280 !important;
-        letter-spacing: 0.03em; text-transform: uppercase; font-weight: 500;
+        --blue: #0075de;
+        --navy: #213183;
+        --teal: #2a9d99;
+        --green: #1aae39;
+        --orange: #dd5b00;
+        --pink: #ff64c8;
+        --red: #dc2626;
+        --amber: #d97706;
+
+        --shadow-card: rgba(0,0,0,0.04) 0 4px 18px,
+                       rgba(0,0,0,0.027) 0 2.025px 7.847px,
+                       rgba(0,0,0,0.02) 0 0.8px 2.925px,
+                       rgba(0,0,0,0.01) 0 0.175px 1.04px;
+        --shadow-subtle: rgba(0,0,0,0.02) 0 1px 3px;
     }
-    .stMetric [data-testid="stMetricValue"] {
-        font-size: 1.6em !important; color: #1F2937 !important; font-weight: 700;
+
+    /* ─── Global font ──────────────────────────────────────────── */
+    html, body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-feature-settings: 'lnum', 'locl';
+        -webkit-font-smoothing: antialiased;
     }
 
-    /* Kanban cards — playful, rounded */
+    /* ─── Page container ───────────────────────────────────────── */
+    .block-container { padding-top: 1.4rem; padding-bottom: 2rem; }
+
+    /* ─── Metric cards (used by st.metric) ─────────────────────── */
+    [data-testid="stMetric"] {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 18px 20px;
+        box-shadow: var(--shadow-card);
+        transition: box-shadow 0.2s ease;
+    }
+    [data-testid="stMetric"]:hover {
+        box-shadow: rgba(0,0,0,0.06) 0 6px 22px, rgba(0,0,0,0.03) 0 2.5px 9px;
+    }
+
+    /* ─── Caption ─────────────────────────────────────────────── */
+    .stCaption, [data-testid="stCaption"] {
+        color: var(--text-2) !important;
+        font-size: 13px !important;
+    }
+
+    /* ─── Horizontal rule ─────────────────────────────────────── */
+    hr {
+        border: none !important;
+        border-top: 1px solid var(--border-subtle) !important;
+        margin: 24px 0 !important;
+    }
+
+    /* ─── Pills navigation (top nav) ──────────────────────────── */
+    div[data-testid="stPills"] button {
+        border-radius: 5px !important;
+        padding: 6px 14px !important;
+        font-weight: 500 !important;
+        font-size: 14px !important;
+        border: 1px solid transparent !important;
+        color: var(--text-2) !important;
+        background: transparent !important;
+        transition: background 120ms !important;
+    }
+    div[data-testid="stPills"] button:hover {
+        background: rgba(0,0,0,0.04) !important;
+        border-color: transparent !important;
+    }
+    div[data-testid="stPills"] button[aria-checked="true"] {
+        background: rgba(0,0,0,0.05) !important;
+        color: var(--text) !important;
+        border-color: transparent !important;
+        font-weight: 600 !important;
+    }
+
+    /* ─── POC badge pills (Today's Activity) ──────────────────── */
+    .activity-strip {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        padding: 14px 18px;
+        background: var(--bg-alt);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        margin: 4px 0 20px;
+    }
+    .activity-label {
+        font-weight: 600;
+        font-size: 11px;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--text-2);
+    }
+    .poc-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        border-radius: 9999px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.125px;
+        font-variant-numeric: tabular-nums;
+    }
+    .poc-badge .poc-dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        flex-shrink: 0;
+    }
+    .poc-badge.poc-jenny  { background: #e8efff; color: #3b5bdb; }
+    .poc-badge.poc-jenny .poc-dot { background: #3b5bdb; }
+    .poc-badge.poc-doris  { background: #fff4e6; color: #c6590e; }
+    .poc-badge.poc-doris .poc-dot { background: #c6590e; }
+    .poc-badge.poc-jialin { background: #ffe3f2; color: #c13c91; }
+    .poc-badge.poc-jialin .poc-dot { background: #c13c91; }
+    .poc-badge.poc-falida { background: #daf0ef; color: #0f7b7b; }
+    .poc-badge.poc-falida .poc-dot { background: #0f7b7b; }
+    .poc-badge.poc-other  { background: #eef0f3; color: #5c5f66; }
+    .poc-badge.poc-other .poc-dot { background: #5c5f66; }
+    .poc-badge.badge-overdue { background: #fee4e2; color: #b42318; }
+    .poc-badge.badge-overdue .poc-dot { background: #b42318; }
+
+    /* Today subtle helper text */
+    .activity-total {
+        font-size: 13px;
+        color: var(--text-2);
+        margin-left: auto;
+        font-weight: 500;
+    }
+
+    /* ─── Section heading tighten ─────────────────────────────── */
+    .section-heading {
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: -0.2px;
+        color: var(--text);
+        margin: 20px 0 2px;
+    }
+    .section-caption {
+        font-size: 13px;
+        color: var(--text-2);
+        margin-bottom: 14px;
+    }
+
+    /* ─── Section header with inline scope badge ────────────── */
+    .section-header-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin: 24px 0 8px;
+        padding: 0;
+    }
+    .section-header-row h2 {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 20px !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.25px !important;
+        line-height: 1.3 !important;
+        color: var(--text) !important;
+    }
+    .section-header-row h3 {
+        margin: 0 !important;
+        padding: 0 !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        line-height: 1.3 !important;
+        color: var(--text) !important;
+        letter-spacing: -0.1px !important;
+    }
+
+    /* ─── Scope badges — make filter scope visible inline ────── */
+    .scope-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.1px;
+        color: var(--text-2);
+        background: rgba(0,0,0,0.04);
+        border: 1px solid transparent;
+        font-variant-numeric: tabular-nums;
+        vertical-align: middle;
+    }
+    /* Scope variants — color indicates how widget is filtered */
+    .scope-badge.scope-campaign {
+        color: #0060b3;
+        background: rgba(0,117,222,0.08);
+    }
+    .scope-badge.scope-date {
+        color: var(--text-2);
+        background: rgba(0,0,0,0.04);
+    }
+    .scope-badge.scope-global {
+        color: var(--text-2);
+        background: rgba(0,0,0,0.04);
+    }
+    .scope-badge.scope-today {
+        color: #0f7b2e;
+        background: rgba(26,174,57,0.10);
+    }
+    .scope-badge.scope-independent {
+        color: #a16207;
+        background: rgba(245,158,11,0.10);
+    }
+
+    /* ─── Kanban cards (kept, polished) ───────────────────────── */
     .kanban-card {
-        background: #FAFBFC;
-        border-radius: 10px;
-        padding: 12px 16px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 12px;
         margin: 6px 0;
-        border-left: 4px solid #E5E7EB;
-        font-size: 0.84em;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        font-size: 13px;
+        box-shadow: var(--shadow-subtle);
         transition: all 0.15s ease;
     }
     .kanban-card:hover {
-        background: #F0F4FF;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-        transform: translateY(-1px);
+        border-color: rgba(0,0,0,0.15);
+        box-shadow: rgba(0,0,0,0.05) 0 2px 8px;
     }
-    .kanban-card .name { font-weight: 600; color: #1F2937; }
-    .kanban-card .poc { color: #6B7280; font-size: 0.8em; margin-top: 3px; font-weight: 500; }
+    .kanban-card .name { font-weight: 600; color: var(--text); }
+    .kanban-card .poc { color: var(--text-2); font-size: 12px; margin-top: 2px; font-weight: 500; }
     .stage-header {
-        font-weight: 700; font-size: 0.85em;
-        padding: 10px 0; margin-bottom: 8px;
-        border-bottom: 3px solid #E5E7EB;
-        color: #374151;
-        text-transform: uppercase;
-        letter-spacing: 0.02em;
+        font-weight: 700;
+        font-size: 13px;
+        padding: 8px 0 6px;
+        margin-bottom: 6px;
+        border-bottom: 2px solid var(--border);
+        color: var(--text);
+        letter-spacing: -0.1px;
     }
 
-    /* POC colors */
-    .poc-jenny { color: #748FFC; }
-    .poc-doris { color: #FF922B; }
-    .poc-jialin { color: #F06595; }
-    .poc-falida { color: #63E6BE; }
-    .poc-other { color: #B197FC; }
+    /* ─── POC text color utilities (still used elsewhere) ─────── */
+    .poc-jenny  { color: #3b5bdb; }
+    .poc-doris  { color: #c6590e; }
+    .poc-jialin { color: #c13c91; }
+    .poc-falida { color: #0f7b7b; }
+    .poc-other  { color: #5c5f66; }
 
-    /* Page container */
-    .block-container { padding-top: 1.2rem; }
+    /* ─── Data editor/frame ───────────────────────────────────── */
+    [data-testid="stDataFrame"] {
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid var(--border-subtle);
+    }
 
-    /* Subtle divider */
-    hr { border-color: #E5E7EB !important; }
+    /* ─── Expander polish ────────────────────────────────────── */
+    [data-testid="stExpander"] {
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 8px !important;
+        background: var(--bg) !important;
+    }
 
-    /* Pills navigation styling */
-    div[data-testid="stPills"] button {
-        border-radius: 20px !important;
-        padding: 6px 18px !important;
+    /* ─── Primary button ─────────────────────────────────────── */
+    [data-testid="baseButton-primary"] {
+        background: var(--text) !important;
+        border: none !important;
+        border-radius: 6px !important;
         font-weight: 500 !important;
-        font-size: 0.88em !important;
-        border: 1.5px solid #E5E7EB !important;
-        transition: all 0.2s ease !important;
-    }
-    div[data-testid="stPills"] button[aria-checked="true"] {
-        background: #1F2937 !important;
-        color: white !important;
-        border-color: #1F2937 !important;
-    }
-    div[data-testid="stPills"] button:hover {
-        border-color: #9CA3AF !important;
     }
 
-    /* Data editor styling */
-    [data-testid="stDataFrame"] { border-radius: 8px; overflow: hidden; }
+    /* ─── Sidebar subtle polish ──────────────────────────────── */
+    [data-testid="stSidebar"] {
+        background: var(--bg-alt);
+        border-right: 1px solid var(--border-subtle);
+    }
+    [data-testid="stSidebar"] h1 { font-size: 18px !important; }
+
+    /* ─── Select / input polish ──────────────────────────────── */
+    [data-baseweb="select"] > div {
+        border-radius: 6px !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -515,7 +730,7 @@ def render_kanban(df_src, show_poc_prefix=True):
 
 # ─── Title ────────────────────────────────────────────────────────────────────
 
-st.title("\U0001f4ca Campaign Dashboard")
+st.title("Campaign Dashboard")
 _subtitle_parts = []
 if use_date_filter:
     _subtitle_parts.append(f"{start_date.strftime('%m/%d')} \u2013 {end_date.strftime('%m/%d')}")
@@ -526,7 +741,7 @@ st.caption("  \u00b7  ".join(_subtitle_parts))
 
 # ─── Navigation ──────────────────────────────────────────────────────────────
 
-NAV_OPTIONS = ["Overview", "Pipeline", "Content & Delivery", "Payment", "Report"]
+NAV_OPTIONS = ["Overview", "Pipeline", "Outreach", "Content & Delivery", "Payment", "Report"]
 
 nav = st.pills(
     "nav", NAV_OPTIONS,
@@ -548,26 +763,9 @@ if nav == "Overview":
     if df_by_contact.empty:
         st.info("No influencers found for the selected date range.")
     else:
-        # Filter logic reference (collapsed by default) — helps users understand
-        # which filter each chart in this tab follows.
-        with st.expander("ℹ️ How filters work on this tab", expanded=False):
-            st.markdown("""
-| Section | Campaign Tag filter | Date range filter | Other |
-|---|:---:|:---:|---|
-| **Today's Activity** | ❌ all POCs | ❌ today only | Fixed "today" |
-| **7-day chart** | ❌ all | ❌ past 7 days | Fixed window |
-| **📈 Trends** | ❌ all | ❌ independent | **Own time controls** |
-| **KPI: Contacted** | ❌ all | ✅ applies | — |
-| **KPI: Confirmed / ER / Cost / Followers** | ✅ applies | ✅ applies | — |
-| **Status Distribution pie** | ❌ all | ✅ applies | Shows sourcing funnel |
-| **Collaboration Stage bar** | ✅ applies | ✅ applies | Shows campaign execution |
-| **ER histogram + Followers vs ER** | ✅ applies | ✅ applies | Confirmed only |
-
-**Rule of thumb:**
-- Pre-campaign views (outreach funnel, overall contacts) → **date filter only**
-- Campaign execution views (confirmed, stages, ER) → **Campaign Tag + date**
-- Trends section → **independent**, use its own Period/Range controls
-            """)
+        # Each section below carries a scope badge indicating how filters apply.
+        # This replaces the "How filters work" expander — scope should be visible
+        # inline, not hidden in a collapse.
 
         # Confirmed follows Campaign Tag filter; Contacted is always the full date range
         ov_confirmed = df_filtered[df_filtered["Status"] == "Confirm"]
@@ -582,41 +780,68 @@ if nav == "Overview":
         overdue_list_ov, _, _ = get_timeline_status(df_filtered)
         overdue_count = len(overdue_list_ov)
 
-        st.subheader("Today's Activity")
-        st.caption("Fixed to today — ignores sidebar filters")
+        st.markdown(
+            '<div class="section-header-row">'
+            "<h2>Today's Activity</h2>"
+            '<span class="scope-badge scope-today">🗓️ Today · All POCs</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
         if today_total > 0:
-            poc_chips = ""
+            poc_badges = ""
             for poc_name, count in today_by_poc.items():
                 if not poc_name.strip():
                     continue
-                pc = poc_color(poc_name)
-                poc_chips += (
-                    f'<span style="display:inline-flex; align-items:center; gap:5px; margin-right:20px; font-size:0.9em;">'
-                    f'<span style="color:{pc}; font-weight:700;">{poc_name}</span>'
-                    f'<span style="color:#1F2937; font-weight:600;">{count}</span>'
+                _poc_class = poc_class(poc_name)
+                poc_badges += (
+                    f'<span class="poc-badge {_poc_class}">'
+                    f'<span class="poc-dot"></span>'
+                    f'{poc_name} +{count}'
                     f'</span>'
                 )
             overdue_html = ""
             if overdue_count > 0:
-                overdue_html = f'<span style="color:#DC2626; font-weight:600; margin-left:20px;">⚠️ {overdue_count} overdue</span>'
+                overdue_html = (
+                    f'<span class="poc-badge badge-overdue">'
+                    f'<span class="poc-dot"></span>'
+                    f'{overdue_count} overdue'
+                    f'</span>'
+                )
             st.markdown(
-                f'<div style="display:flex; align-items:center; flex-wrap:wrap; padding:8px 0;">'
-                f'{poc_chips}'
-                f'<span style="color:#6B7280; font-size:0.85em;">{today_total} new contacts today</span>'
+                f'<div class="activity-strip">'
+                f'<span class="activity-label">Today</span>'
+                f'{poc_badges}'
                 f'{overdue_html}'
+                f'<span class="activity-total">{today_total} new contacts</span>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
         else:
-            overdue_html = f' &nbsp;·&nbsp; <span style="color:#DC2626; font-weight:600;">⚠️ {overdue_count} overdue</span>' if overdue_count > 0 else ""
+            overdue_html = ""
+            if overdue_count > 0:
+                overdue_html = (
+                    f'<span class="poc-badge badge-overdue" style="margin-left:12px;">'
+                    f'<span class="poc-dot"></span>'
+                    f'{overdue_count} overdue'
+                    f'</span>'
+                )
             st.markdown(
-                f'<div style="color:#9CA3AF; font-size:0.88em; padding:8px 0;">'
-                f'No outreach recorded today{overdue_html}</div>',
+                f'<div class="activity-strip">'
+                f'<span class="activity-label">Today</span>'
+                f'<span style="color:var(--text-3); font-size:13px;">No outreach recorded</span>'
+                f'{overdue_html}'
+                f'</div>',
                 unsafe_allow_html=True,
             )
 
         # 7-day outreach chart
-        st.caption("Past 7 days of outreach across all POCs — ignores sidebar filters")
+        st.markdown(
+            '<div class="section-header-row">'
+            '<h3>7-day Outreach</h3>'
+            '<span class="scope-badge scope-global">🌐 All POCs · Past 7 days</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
         fig_daily = daily_outreach_chart(df_all)
         if fig_daily:
             st.plotly_chart(fig_daily, use_container_width=True, key="ov_daily")
@@ -630,22 +855,52 @@ if nav == "Overview":
         st.markdown("---")
 
         # ─── KPI Metrics ─────────────────────────────────────────────────
-        st.subheader("KPIs")
-        st.caption("Contacted = date range only · the rest = Campaign Tag + date range")
+        st.markdown(
+            '<div class="section-header-row">'
+            '<h2>KPIs</h2>'
+            '<span class="scope-badge scope-campaign">🏷️ Campaign + date range</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
         k1, k2, k3, k4, k5 = st.columns(5)
-        k1.metric("Contacted", len(df_by_contact))
-        k2.metric("Confirmed", len(ov_confirmed))
+        k1.metric(
+            "Contacted",
+            len(df_by_contact),
+            help="Scope: date range only (Campaign Tag not applied — contacts happen before a campaign tag is assigned).",
+        )
+        k2.metric(
+            "Confirmed",
+            len(ov_confirmed),
+            help="Scope: Campaign Tag + date range. Confirmed influencers for the selected campaign.",
+        )
         avg_er = ov_confirmed["_er_num"].dropna().mean()
-        k3.metric("Avg ER%", f"{avg_er:.2f}%" if pd.notna(avg_er) else "N/A")
+        k3.metric(
+            "Avg ER%",
+            f"{avg_er:.2f}%" if pd.notna(avg_er) else "N/A",
+            help="Scope: Campaign Tag + date range · confirmed only.",
+        )
         total_price = ov_confirmed["_price_num"].dropna().sum()
-        k4.metric("Total Cost", f"${total_price:,.0f}" if total_price > 0 else "N/A")
+        k4.metric(
+            "Total Cost",
+            f"${total_price:,.0f}" if total_price > 0 else "N/A",
+            help="Scope: Campaign Tag + date range · sum of confirmed prices.",
+        )
         avg_fol = ov_confirmed["_followers_num"].dropna().mean()
-        k5.metric("Avg Followers", f"{avg_fol:,.0f}" if pd.notna(avg_fol) else "N/A")
+        k5.metric(
+            "Avg Followers",
+            f"{avg_fol:,.0f}" if pd.notna(avg_fol) else "N/A",
+            help="Scope: Campaign Tag + date range · average follower count of confirmed influencers.",
+        )
 
-        # ─── 📈 Contact → Confirm → Post Trends ──────────────────────────
+        # ─── Contact → Confirm → Post Trends ──────────────────────────────
         st.markdown("---")
-        st.subheader("📈 Contact → Confirm → Post Trends")
-        st.caption("**Independent time controls** — uses its own Period/Range below, not the sidebar. Split by POC.")
+        st.markdown(
+            '<div class="section-header-row">'
+            '<h2>Contact → Confirm → Post Trends</h2>'
+            '<span class="scope-badge scope-independent">⚙️ Own time controls · split by POC</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
 
         # Controls
         _tc1, _tc2, _tc3 = st.columns([1.2, 2, 1.5])
@@ -823,35 +1078,27 @@ if nav == "Overview":
         st.markdown("---")
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown("**Sourcing Funnel — Status Distribution**")
-            st.caption("📅 Date range only (Campaign Tag not applied — outreach is pre-campaign)")
+            st.markdown(
+                '<div class="section-header-row">'
+                '<h3>Sourcing Funnel — Status Distribution</h3>'
+                '<span class="scope-badge scope-date">🗓️ All · Date range</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
             fig = status_distribution_pie(df_by_contact)
             if fig:
                 st.plotly_chart(fig, use_container_width=True, key="ov_status")
         with c2:
-            st.markdown("**Campaign Execution — Collaboration Stage**")
-            st.caption("🏷️ Campaign Tag + date range (confirmed influencers only)")
+            st.markdown(
+                '<div class="section-header-row">'
+                '<h3>Campaign Execution — Collaboration Stage</h3>'
+                '<span class="scope-badge scope-campaign">🏷️ Campaign + date · Confirmed</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
             fig = collab_stage_detail(ov_confirmed)
             if fig:
                 st.plotly_chart(fig, use_container_width=True, key="ov_collab")
-
-        st.markdown("---")
-        # Collapsed by default — these are deep-dive views, not daily-read metrics
-        with st.expander("📊 ER Analysis", expanded=False):
-            c3, c4 = st.columns(2)
-            with c3:
-                st.markdown("**ER% Distribution**")
-                st.caption("🏷️ Campaign Tag + date range · X = ER%, Y = # influencers · Green = median, red = mean")
-                fig = er_histogram(ov_confirmed)
-                if fig:
-                    st.plotly_chart(fig, use_container_width=True, key="ov_er")
-            with c4:
-                st.markdown("**Followers vs ER%**")
-                st.caption("🏷️ Campaign Tag + date range · Top-left = high ER with fewer followers (great value)")
-                fig = followers_vs_er_scatter(ov_confirmed)
-                if fig:
-                    st.plotly_chart(fig, use_container_width=True, key="ov_fver")
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Pipeline
@@ -899,9 +1146,11 @@ elif nav == "Pipeline":
 
         st.markdown("---")
 
-        # ── Missed Posts Alert ────────────────────────────────────────
+        # ── Missed Posts detection (merged into Production Timeline below) ─
+        # Post Date has passed but Collaboration Stage isn't Posted → needs attention.
+        # We no longer render a separate red alert; instead, people in this set get
+        # a "🔴 MISSED POST" pill next to their name in Production Timeline.
         _tl_today = get_today_la()
-
         _confirmed_with_pd = df_filtered[
             (df_filtered["Status"] == "Confirm")
             & (df_filtered["_post_date_parsed"].notna())
@@ -910,30 +1159,11 @@ elif nav == "Pipeline":
             (_confirmed_with_pd["_post_date_parsed"] <= _tl_today)
             & (_confirmed_with_pd["Collaboration Stage"].str.strip() != "Posted")
         ]
-        if not _missed_posts.empty:
-            _mp_html = (
-                '<div style="background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; '
-                'padding:14px 18px; margin-bottom:16px;">'
-                f'<div style="font-weight:700; font-size:0.92em; color:#DC2626; margin-bottom:8px;">'
-                f'⚠️ {len(_missed_posts)} Missed Post{"s" if len(_missed_posts) != 1 else ""}</div>'
-                '<div style="display:flex; flex-wrap:wrap; gap:4px 18px;">'
-            )
-            for _, _mr in _missed_posts.iterrows():
-                _mn = (_mr.get("Name", "") or "").strip() or "(no name)"
-                _mp = (_mr.get("POC", "") or "").strip()
-                _md = _mr["_post_date_parsed"]
-                _md_str = _md.strftime("%m/%d") if _md else ""
-                _mpc = poc_color(_mp)
-                _mp_html += (
-                    f'<span style="display:inline-flex; align-items:center; gap:4px; font-size:0.84em;">'
-                    f'<span style="width:7px; height:7px; border-radius:50%; background:{_mpc}; display:inline-block;"></span>'
-                    f'<span style="color:#DC2626; font-weight:600;">{_mn}</span>'
-                    f'<span style="color:#9CA3AF; font-size:0.85em;">({_md_str})</span>'
-                    f'{sheet_row_icon(_mr.get("_sheet_row", 0))}'
-                    f'</span>'
-                )
-            _mp_html += '</div></div>'
-            st.markdown(_mp_html, unsafe_allow_html=True)
+        # Map sheet_row → post_date for fast pill rendering
+        _missed_pd_by_row = {
+            int(r["_sheet_row"]): r["_post_date_parsed"]
+            for _, r in _missed_posts.iterrows()
+        } if not _missed_posts.empty else {}
 
         # Production Timeline Status
         overdue_list, in_progress_list, completed_count = get_timeline_status(df_filtered)
@@ -971,12 +1201,25 @@ elif nav == "Pipeline":
                     else:
                         icon = f'<span style="width:7px; height:7px; border-radius:50%; background:{pc}; display:inline-block;"></span>'
                         day_label = ''
+                    # "🔴 MISSED POST" pill if Post Date has passed (merged from
+                    # former Missed Posts alert block — see computation above)
+                    missed_pill = ""
+                    if sr in _missed_pd_by_row:
+                        _md = _missed_pd_by_row[sr]
+                        _md_str = _md.strftime("%m/%d") if _md else ""
+                        missed_pill = (
+                            f'<span style="background:#FEE2E2; color:#B91C1C; '
+                            f'padding:1px 6px; border-radius:3px; font-size:0.72em; '
+                            f'font-weight:600; letter-spacing:0.2px; margin-left:4px;">'
+                            f'🔴 MISSED {_md_str}</span>'
+                        )
                     html += (
                         f'<span style="display:inline-flex; align-items:center; gap:4px; font-size:0.84em;">'
                         f'{icon}'
                         f'<span style="color:#1F2937; font-weight:500;">{name}</span>'
                         f'{day_label}'
                         f'{sheet_row_icon(sr)}'
+                        f'{missed_pill}'
                         f'</span>'
                     )
                 html += '</div>'
@@ -1004,10 +1247,16 @@ elif nav == "Pipeline":
                 for _, r in no_stage.iterrows():
                     st.write(f"- **{r.get('Name', '')}** (POC: {r.get('POC', 'N/A')})")
 
-        st.markdown("---")
 
-        # ── Email Outreach ───────────────────────────────────────────────
-        # Compute counts for section header
+# ═══════════════════════════════════════════════════════════════════════════════
+# Outreach (Act — email sending + full edit table)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+elif nav == "Outreach":
+    if df_filtered.empty:
+        st.info("No influencers found.")
+    else:
+        # ─── Metric computations (section headers + summary row) ───
         _unsent_count = len(df_filtered[(df_filtered["Status"].str.strip() == "") & (df_filtered["Contact"].str.strip() != "")])
         _contacted_for_fu = df_filtered[df_filtered["Status"] == "Contacted"]
         _fu_count = 0
@@ -1026,11 +1275,9 @@ elif nav == "Pipeline":
 
         # Compute open rate stats — use df_all (not filtered by Campaign Tag)
         # Exclude emails sent BEFORE the tracking pixel was deployed (2026-04-16).
-        # Those emails have no pixel embedded, so they'll always show as "not opened".
         TRACKING_START_DATE = date(2026, 4, 16)
 
         _sent_tracked_all = df_all[df_all["Email Message-ID"].str.strip() != ""] if "Email Message-ID" in df_all.columns else pd.DataFrame()
-        # Floor: only count emails sent on/after tracking pixel deployment
         if not _sent_tracked_all.empty and "Last Email Sent" in _sent_tracked_all.columns:
             _sent_tracked_all = _sent_tracked_all[
                 _sent_tracked_all["Last Email Sent"].apply(parse_sheet_date).apply(
@@ -1041,14 +1288,251 @@ elif nav == "Pipeline":
         _opened_count = 0
         if _sent_count > 0 and "Email Opened" in _sent_tracked_all.columns:
             _opened_count = (_sent_tracked_all["Email Opened"].str.strip().str.lower() == "yes").sum()
-        _open_rate_str = ""
-        if _sent_count > 0:
-            _open_pct = (_opened_count / _sent_count * 100)
-            _open_rate_str = f", {_opened_count}/{_sent_count} opened ({_open_pct:.0f}%)"
+        _open_pct = (_opened_count / _sent_count * 100) if _sent_count else 0
+        _open_rate_str = f", {_opened_count}/{_sent_count} opened ({_open_pct:.0f}%)" if _sent_count else ""
 
-        # ─── Email Tracking Panel ────────────────────────────────────────
+        # ─── Summary row (3 metrics at top) ────────────────────
+        _sc1, _sc2, _sc3 = st.columns(3)
+        _sc1.metric(
+            "Unsent",
+            _unsent_count,
+            help="Candidates with no Status yet, ready for first outreach (Campaign + date filtered)",
+        )
+        _sc2.metric(
+            "Follow-ups due",
+            _fu_count,
+            help="Contacted people awaiting follow-up based on days since last email (Campaign + date filtered)",
+        )
+        _sc3.metric(
+            "Opened",
+            f"{_opened_count}/{_sent_count} ({_open_pct:.0f}%)" if _sent_count else "0/0",
+            help=f"Opened / Sent emails since tracking pixel deployed {TRACKING_START_DATE:%Y-%m-%d}. Global scope (all POCs).",
+        )
+
+        # ─── Email Sender (Gmail auth + send actions) ──────────────
+        st.markdown("---")
+        st.markdown(
+            '<div class="section-header-row">'
+            '<h2>Email Sender</h2>'
+            f'<span class="scope-badge scope-date">🔒 POC-scoped · {_unsent_count} unsent · {_fu_count} follow-ups due</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        if "gmail_connected" not in st.session_state:
+            st.session_state["gmail_connected"] = False
+
+        if not st.session_state["gmail_connected"]:
+            st.caption("Connect Gmail to send outreach and follow-ups. You'll only see your own POC's rows.")
+            gc1, gc2 = st.columns(2)
+            gmail_addr = gc1.text_input("Gmail address", placeholder="you@jobright.ai", key="gmail_addr")
+            gmail_pw = gc2.text_input("App Password", type="password", placeholder="xxxx xxxx xxxx xxxx", key="gmail_pw")
+            if st.button("🔗 Connect Gmail"):
+                if gmail_addr and gmail_pw:
+                    from dashboard_utils.email_client import test_smtp_connection
+                    if test_smtp_connection(gmail_addr, gmail_pw):
+                        st.session_state["gmail_connected"] = True
+                        st.session_state["gmail_email"] = gmail_addr
+                        st.session_state["gmail_password"] = gmail_pw
+                        st.toast(f"Connected as {gmail_addr}")
+                        st.rerun()
+                    else:
+                        st.error("Connection failed. Check your email and App Password.")
+                else:
+                    st.warning("Enter both email and App Password.")
+        else:
+            gmail_email = st.session_state["gmail_email"]
+            # Extract POC name from Gmail address (jenny@jobright.ai → "Jenny")
+            connected_poc = gmail_email.split("@")[0].capitalize()
+            dc1, dc2 = st.columns([3, 1])
+            dc1.caption(f"✅ Connected as **{gmail_email}** — will send as POC **{connected_poc}**")
+            if dc2.button("🔌 Disconnect", key="gmail_disconnect"):
+                st.session_state["gmail_connected"] = False
+                st.session_state.pop("gmail_email", None)
+                st.session_state.pop("gmail_password", None)
+                st.rerun()
+
+            # Send outreach section — STRICTLY filtered to connected POC's rows only
+            df_unsent = df_all[df_all["Status"].str.strip() == ""]
+            df_unsent = df_unsent[df_unsent["Contact"].str.strip() != ""]
+            # ENFORCE: only show rows where POC matches connected Gmail
+            df_unsent = df_unsent[df_unsent["POC"].str.strip() == connected_poc]
+
+            if not df_unsent.empty:
+                with st.expander(f"📤 Send Outreach ({len(df_unsent)} {connected_poc}'s unsent people)", expanded=False):
+                    st.caption(f"🔒 Only {connected_poc}'s rows shown. Switch Gmail to send as another POC.")
+
+                    # Show candidates
+                    send_display = df_unsent[["Name", "Contact", "POC"]].copy()
+                    send_display.insert(0, "Send", True)
+                    edited_send = st.data_editor(
+                        send_display, use_container_width=True,
+                        hide_index=True, key="send_editor",
+                    )
+
+                    selected = edited_send[edited_send["Send"] == True]
+                    st.caption(f"{len(selected)} selected")
+
+                    if st.button(f"📧 Send Outreach ({len(selected)} emails)", type="primary", disabled=len(selected) == 0):
+                        from dashboard_utils.email_client import batch_send_outreach
+
+                        # Get sender name from POC column of the connected user
+                        sender_name = gmail_email.split("@")[0].capitalize()
+
+                        # Build recipients list
+                        recipients = []
+                        for idx, row in selected.iterrows():
+                            orig_row = df_unsent.loc[idx]
+                            recipients.append({
+                                "to_email": orig_row["Contact"].strip(),
+                                "name": (orig_row["Name"].strip().split()[0] if orig_row["Name"].strip() else "there"),
+                                "sheet_row": int(orig_row["_sheet_row"]),
+                            })
+
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+
+                        def update_progress(current, total, name, success):
+                            progress_bar.progress(current / total)
+                            icon = "✅" if success else "❌"
+                            status_text.caption(f"{icon} {name} ({current}/{total})")
+
+                        results = batch_send_outreach(
+                            gmail_email, st.session_state["gmail_password"],
+                            sender_name, recipients, update_progress,
+                        )
+
+                        # Write results to Sheet
+                        ws = st.session_state["ws"]
+                        updates = []
+                        now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+                        success_count = 0
+                        for r in results:
+                            if r["success"]:
+                                success_count += 1
+                                sr = r["sheet_row"]
+                                # Status → Contacted
+                                updates.append((sr, COL["status"] + 1, "Contacted"))
+                                # Email Message-ID
+                                updates.append((sr, COL["email_msg_id"] + 1, r["msg_id"]))
+                                # Last Email Sent
+                                updates.append((sr, COL["last_email_sent"] + 1, now_str))
+                                # Follow-Up Count = 0
+                                updates.append((sr, COL["followup_count"] + 1, "0"))
+
+                        if updates:
+                            batch_update_cells(ws, updates)
+                            # Update in-memory DataFrame
+                            if "df" in st.session_state:
+                                df_mem = st.session_state["df"]
+                                for r in results:
+                                    if r["success"]:
+                                        mask = df_mem["_sheet_row"] == r["sheet_row"]
+                                        if mask.any():
+                                            df_mem.loc[mask, "Status"] = "Contacted"
+                                            df_mem.loc[mask, "Email Message-ID"] = r["msg_id"]
+                                            df_mem.loc[mask, "Last Email Sent"] = now_str
+                                            df_mem.loc[mask, "Follow-Up Count"] = "0"
+
+                        failed_count = len(results) - success_count
+                        st.success(f"Done! ✅ Sent {success_count} / ❌ Failed {failed_count}")
+            else:
+                st.caption(f"No unsent contacts for {connected_poc} (all have a Status or no email).")
+
+            # Follow-up section
+            df_contacted = df_filtered[df_filtered["Status"] == "Contacted"].copy()
+            # ENFORCE: only show rows where POC matches connected Gmail
+            df_contacted = df_contacted[df_contacted["POC"].str.strip() == connected_poc]
+            if "Email Message-ID" in df_contacted.columns and "Last Email Sent" in df_contacted.columns:
+                df_followable = df_contacted[df_contacted["Email Message-ID"].str.strip() != ""]
+                if not df_followable.empty:
+                    with st.expander(f"🔄 Follow-Ups ({len(df_followable)} of {connected_poc}'s people awaiting reply)", expanded=False):
+                        st.caption(f"🔒 Only {connected_poc}'s rows shown.")
+
+                        from dashboard_utils.email_client import (
+                            check_reply_status, send_followup as send_fu,
+                            REPLY_YES, REPLY_UNKNOWN,
+                        )
+
+                        now = datetime.now()
+                        fu_candidates = []
+                        for _, row in df_followable.iterrows():
+                            try:
+                                last_sent = datetime.strptime(row["Last Email Sent"].strip(), "%Y-%m-%d %H:%M")
+                            except (ValueError, AttributeError):
+                                continue
+                            fu_count = int(row.get("Follow-Up Count", "0") or "0")
+                            days_since = (now - last_sent).days
+
+                            if fu_count == 0 and days_since >= 2:
+                                fu_candidates.append({"row": row, "followup_num": 1, "days": days_since})
+                            elif fu_count == 1 and days_since >= 1:
+                                fu_candidates.append({"row": row, "followup_num": 2, "days": days_since})
+
+                        if fu_candidates:
+                            st.write(f"**{len(fu_candidates)}** people need follow-up:")
+                            for c in fu_candidates:
+                                r = c["row"]
+                                st.write(f"- **{r['Name']}** → Follow-Up #{c['followup_num']} ({c['days']} days since last email)")
+
+                            if st.button(f"📧 Send {len(fu_candidates)} Follow-Ups", type="primary"):
+                                ws = st.session_state["ws"]
+                                sent = 0
+                                skipped = 0
+                                for c in fu_candidates:
+                                    r = c["row"]
+                                    msg_id = r["Email Message-ID"]
+
+                                    # Check if they already replied (tri-state)
+                                    _reply_status = check_reply_status(
+                                        gmail_email, st.session_state["gmail_password"], msg_id
+                                    )
+                                    if _reply_status == REPLY_YES:
+                                        skipped += 1
+                                        continue
+                                    if _reply_status == REPLY_UNKNOWN:
+                                        # Fail-closed: don't send if we can't verify
+                                        st.warning(f"⚠️ {r['Name']} — IMAP check failed, skipping to avoid duplicate send.")
+                                        skipped += 1
+                                        continue
+
+                                    try:
+                                        sender_name = gmail_email.split("@")[0].capitalize()
+                                        new_msg_id = send_fu(
+                                            gmail_email, st.session_state["gmail_password"],
+                                            r["Contact"].strip(),
+                                            (r["Name"].strip().split()[0] if r["Name"].strip() else "there"),
+                                            sender_name, msg_id, c["followup_num"],
+                                        )
+                                        sr = int(r["_sheet_row"])
+                                        now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+                                        batch_update_cells(ws, [
+                                            (sr, COL["last_email_sent"] + 1, now_str),
+                                            (sr, COL["followup_count"] + 1, str(c["followup_num"])),
+                                            # Update Message-ID to the follow-up's new ID so
+                                            # tracking pixel (which uses this ID) matches on open
+                                            (sr, COL["email_msg_id"] + 1, new_msg_id),
+                                        ])
+                                        sent += 1
+                                    except Exception as e:
+                                        st.error(f"Failed to send to {r['Name']}: {e}")
+
+                                st.success(f"Follow-ups done! ✅ Sent {sent} / ⏭️ Skipped {skipped} (already replied)")
+                        else:
+                            st.info("No follow-ups needed right now.")
+                else:
+                    st.caption(f"No emails tracked yet for {connected_poc}. Send outreach first.")
+
+        # ─── Email Tracking Panel (after Email Sender — you connect first, then track) ─
+        st.markdown("---")
+        st.markdown(
+            '<div class="section-header-row">'
+            '<h2>Email Tracking</h2>'
+            f'<span class="scope-badge scope-global">🌐 All POCs · {_sent_count} sent{_open_rate_str}</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
         if _sent_count > 0:
-            with st.expander(f"📊 Email Tracking ({_sent_count} sent{_open_rate_str})", expanded=False):
+            with st.expander("Expand tracking details", expanded=True):
                 # ── Time range filter (scopes everything below) ──
                 _tr1, _tr2 = st.columns([2, 1])
                 _range_opts = ["Last 7 days", "Last 14 days", "Last 30 days", "All time"]
@@ -1191,10 +1675,32 @@ elif nav == "Pipeline":
 
                 st.markdown("---")
 
-                # Filters
+                # Filters — default POC filter to the connected Gmail's POC so the
+                # detail table shows only your own emails. Clear the multiselect
+                # to see all POCs' emails (useful for rollup views).
                 _tf1, _tf2 = st.columns([2, 1])
                 _poc_opts = sorted(set(_sent_tracked_all["POC"].dropna().str.strip().unique()) - {""})
-                _sel_poc = _tf1.multiselect("Filter by POC", _poc_opts, key="track_poc")
+                _connected_gmail_for_scope = st.session_state.get("gmail_email", "")
+                _connected_poc_label = (
+                    _connected_gmail_for_scope.split("@")[0].capitalize()
+                    if _connected_gmail_for_scope else ""
+                )
+                _default_poc = (
+                    [_connected_poc_label]
+                    if _connected_poc_label and _connected_poc_label in _poc_opts
+                    else []
+                )
+                _sel_poc = _tf1.multiselect(
+                    "Filter by POC",
+                    _poc_opts,
+                    default=_default_poc,
+                    key="track_poc",
+                    help=(
+                        f"Defaults to {_connected_poc_label} (your connected Gmail). "
+                        "Clear the filter to see all POCs."
+                        if _connected_poc_label else "Select POCs to filter the tracking table."
+                    ),
+                )
                 _only_unopened = _tf2.checkbox("Only unopened", key="track_unopened")
 
                 _use_date = st.checkbox("Filter by sent date range", key="track_use_date")
@@ -1283,216 +1789,15 @@ elif nav == "Pipeline":
                     _rows_html += '</tbody></table>'
                     st.markdown(_rows_html, unsafe_allow_html=True)
 
-        with st.expander(f"📧 Email Outreach ({_unsent_count} unsent, {_fu_count} follow-ups needed{_open_rate_str})", expanded=False):
-            # Gmail connection
-            if "gmail_connected" not in st.session_state:
-                st.session_state["gmail_connected"] = False
-
-            if not st.session_state["gmail_connected"]:
-                with st.expander("Connect Gmail to send emails", expanded=False):
-                    gc1, gc2 = st.columns(2)
-                    gmail_addr = gc1.text_input("Gmail address", placeholder="you@jobright.ai", key="gmail_addr")
-                    gmail_pw = gc2.text_input("App Password", type="password", placeholder="xxxx xxxx xxxx xxxx", key="gmail_pw")
-                    if st.button("🔗 Connect Gmail"):
-                        if gmail_addr and gmail_pw:
-                            from dashboard_utils.email_client import test_smtp_connection
-                            if test_smtp_connection(gmail_addr, gmail_pw):
-                                st.session_state["gmail_connected"] = True
-                                st.session_state["gmail_email"] = gmail_addr
-                                st.session_state["gmail_password"] = gmail_pw
-                                st.toast(f"Connected as {gmail_addr}")
-                                st.rerun()
-                            else:
-                                st.error("Connection failed. Check your email and App Password.")
-                        else:
-                            st.warning("Enter both email and App Password.")
-            else:
-                gmail_email = st.session_state["gmail_email"]
-                # Extract POC name from Gmail address (jenny@jobright.ai → "Jenny")
-                connected_poc = gmail_email.split("@")[0].capitalize()
-                dc1, dc2 = st.columns([3, 1])
-                dc1.caption(f"✅ Connected as **{gmail_email}** — will send as POC **{connected_poc}**")
-                if dc2.button("🔌 Disconnect", key="gmail_disconnect"):
-                    st.session_state["gmail_connected"] = False
-                    st.session_state.pop("gmail_email", None)
-                    st.session_state.pop("gmail_password", None)
-                    st.rerun()
-
-                # Send outreach section — STRICTLY filtered to connected POC's rows only
-                df_unsent = df_all[df_all["Status"].str.strip() == ""]
-                df_unsent = df_unsent[df_unsent["Contact"].str.strip() != ""]
-                # ENFORCE: only show rows where POC matches connected Gmail
-                df_unsent = df_unsent[df_unsent["POC"].str.strip() == connected_poc]
-
-                if not df_unsent.empty:
-                    with st.expander(f"📤 Send Outreach ({len(df_unsent)} {connected_poc}'s unsent people)", expanded=False):
-                        st.caption(f"🔒 Only {connected_poc}'s rows shown. Switch Gmail to send as another POC.")
-
-                        # Show candidates
-                        send_display = df_unsent[["Name", "Contact", "POC"]].copy()
-                        send_display.insert(0, "Send", True)
-                        edited_send = st.data_editor(
-                            send_display, use_container_width=True,
-                            hide_index=True, key="send_editor",
-                        )
-
-                        selected = edited_send[edited_send["Send"] == True]
-                        st.caption(f"{len(selected)} selected")
-
-                        if st.button(f"📧 Send Outreach ({len(selected)} emails)", type="primary", disabled=len(selected) == 0):
-                            from dashboard_utils.email_client import batch_send_outreach
-
-                            # Get sender name from POC column of the connected user
-                            sender_name = gmail_email.split("@")[0].capitalize()
-
-                            # Build recipients list
-                            recipients = []
-                            for idx, row in selected.iterrows():
-                                orig_row = df_unsent.loc[idx]
-                                recipients.append({
-                                    "to_email": orig_row["Contact"].strip(),
-                                    "name": (orig_row["Name"].strip().split()[0] if orig_row["Name"].strip() else "there"),
-                                    "sheet_row": int(orig_row["_sheet_row"]),
-                                })
-
-                            progress_bar = st.progress(0)
-                            status_text = st.empty()
-
-                            def update_progress(current, total, name, success):
-                                progress_bar.progress(current / total)
-                                icon = "✅" if success else "❌"
-                                status_text.caption(f"{icon} {name} ({current}/{total})")
-
-                            results = batch_send_outreach(
-                                gmail_email, st.session_state["gmail_password"],
-                                sender_name, recipients, update_progress,
-                            )
-
-                            # Write results to Sheet
-                            ws = st.session_state["ws"]
-                            updates = []
-                            now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-                            success_count = 0
-                            for r in results:
-                                if r["success"]:
-                                    success_count += 1
-                                    sr = r["sheet_row"]
-                                    # Status → Contacted
-                                    updates.append((sr, COL["status"] + 1, "Contacted"))
-                                    # Email Message-ID
-                                    updates.append((sr, COL["email_msg_id"] + 1, r["msg_id"]))
-                                    # Last Email Sent
-                                    updates.append((sr, COL["last_email_sent"] + 1, now_str))
-                                    # Follow-Up Count = 0
-                                    updates.append((sr, COL["followup_count"] + 1, "0"))
-
-                            if updates:
-                                batch_update_cells(ws, updates)
-                                # Update in-memory DataFrame
-                                if "df" in st.session_state:
-                                    df_mem = st.session_state["df"]
-                                    for r in results:
-                                        if r["success"]:
-                                            mask = df_mem["_sheet_row"] == r["sheet_row"]
-                                            if mask.any():
-                                                df_mem.loc[mask, "Status"] = "Contacted"
-                                                df_mem.loc[mask, "Email Message-ID"] = r["msg_id"]
-                                                df_mem.loc[mask, "Last Email Sent"] = now_str
-                                                df_mem.loc[mask, "Follow-Up Count"] = "0"
-
-                            failed_count = len(results) - success_count
-                            st.success(f"Done! ✅ Sent {success_count} / ❌ Failed {failed_count}")
-                else:
-                    st.info("No unsent contacts (all have a Status or no email).")
-
-                # Follow-up section
-                df_contacted = df_filtered[df_filtered["Status"] == "Contacted"].copy()
-                # ENFORCE: only show rows where POC matches connected Gmail
-                df_contacted = df_contacted[df_contacted["POC"].str.strip() == connected_poc]
-                if "Email Message-ID" in df_contacted.columns and "Last Email Sent" in df_contacted.columns:
-                    df_followable = df_contacted[df_contacted["Email Message-ID"].str.strip() != ""]
-                    if not df_followable.empty:
-                        with st.expander(f"🔄 Follow-Ups ({len(df_followable)} of {connected_poc}'s people awaiting reply)", expanded=False):
-                            st.caption(f"🔒 Only {connected_poc}'s rows shown.")
-
-                            from dashboard_utils.email_client import (
-                                check_reply_status, send_followup as send_fu,
-                                REPLY_YES, REPLY_UNKNOWN,
-                            )
-
-                            now = datetime.now()
-                            fu_candidates = []
-                            for _, row in df_followable.iterrows():
-                                try:
-                                    last_sent = datetime.strptime(row["Last Email Sent"].strip(), "%Y-%m-%d %H:%M")
-                                except (ValueError, AttributeError):
-                                    continue
-                                fu_count = int(row.get("Follow-Up Count", "0") or "0")
-                                days_since = (now - last_sent).days
-
-                                if fu_count == 0 and days_since >= 2:
-                                    fu_candidates.append({"row": row, "followup_num": 1, "days": days_since})
-                                elif fu_count == 1 and days_since >= 1:
-                                    fu_candidates.append({"row": row, "followup_num": 2, "days": days_since})
-
-                            if fu_candidates:
-                                st.write(f"**{len(fu_candidates)}** people need follow-up:")
-                                for c in fu_candidates:
-                                    r = c["row"]
-                                    st.write(f"- **{r['Name']}** → Follow-Up #{c['followup_num']} ({c['days']} days since last email)")
-
-                                if st.button(f"📧 Send {len(fu_candidates)} Follow-Ups", type="primary"):
-                                    ws = st.session_state["ws"]
-                                    sent = 0
-                                    skipped = 0
-                                    for c in fu_candidates:
-                                        r = c["row"]
-                                        msg_id = r["Email Message-ID"]
-
-                                        # Check if they already replied (tri-state)
-                                        _reply_status = check_reply_status(
-                                            gmail_email, st.session_state["gmail_password"], msg_id
-                                        )
-                                        if _reply_status == REPLY_YES:
-                                            skipped += 1
-                                            continue
-                                        if _reply_status == REPLY_UNKNOWN:
-                                            # Fail-closed: don't send if we can't verify
-                                            st.warning(f"⚠️ {r['Name']} — IMAP check failed, skipping to avoid duplicate send.")
-                                            skipped += 1
-                                            continue
-
-                                        try:
-                                            sender_name = gmail_email.split("@")[0].capitalize()
-                                            new_msg_id = send_fu(
-                                                gmail_email, st.session_state["gmail_password"],
-                                                r["Contact"].strip(),
-                                                (r["Name"].strip().split()[0] if r["Name"].strip() else "there"),
-                                                sender_name, msg_id, c["followup_num"],
-                                            )
-                                            sr = int(r["_sheet_row"])
-                                            now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-                                            batch_update_cells(ws, [
-                                                (sr, COL["last_email_sent"] + 1, now_str),
-                                                (sr, COL["followup_count"] + 1, str(c["followup_num"])),
-                                                # Update Message-ID to the follow-up's new ID so
-                                                # tracking pixel (which uses this ID) matches on open
-                                                (sr, COL["email_msg_id"] + 1, new_msg_id),
-                                            ])
-                                            sent += 1
-                                        except Exception as e:
-                                            st.error(f"Failed to send to {r['Name']}: {e}")
-
-                                    st.success(f"Follow-ups done! ✅ Sent {sent} / ⏭️ Skipped {skipped} (already replied)")
-                            else:
-                                st.info("No follow-ups needed right now.")
-                    else:
-                        st.info("No emails tracked yet. Send outreach first.")
-
+        # ─── Full Table (searchable, editable) ───────────────────
         st.markdown("---")
-
-        # Filters + table
-        st.subheader("Full Table")
+        st.markdown(
+            '<div class="section-header-row">'
+            '<h2>Full Table</h2>'
+            '<span class="scope-badge scope-campaign">🏷️ Campaign + date</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
         search = st.text_input("Search by name", key="pipe_search")
         df_pipe = df_filtered.copy()
         if search:
@@ -1734,6 +2039,129 @@ elif nav == "Report":
         # Follower bucket
         df_rep["_follower_bucket"] = df_rep["_followers_num"].apply(follower_bucket)
 
+        # ─── Pre-compute segment stats + best-per-segment + top performers ─
+        # Hoisted from What Worked Best / Best Archetype / Top Performers sections
+        # so Key Takeaways (which lives at the top now) can reference them.
+        # Display below is unchanged — those sections just re-render pre-computed vars.
+
+        # ─── Segment Analysis Helper ─────────────────────────────────
+        def _segment_stats(df, by_col, label=None):
+            """Aggregate per-segment metrics. Returns DataFrame sorted by Avg CPM."""
+            if by_col not in df.columns:
+                return pd.DataFrame()
+            d = df.copy()
+            d[by_col] = d[by_col].astype(str).str.strip()
+            d = d[d[by_col] != ""]
+            if d.empty:
+                return pd.DataFrame()
+            g = d.groupby(by_col).agg(
+                n=("Name", "count"),
+                avg_cpm=("_cpm", "mean"),
+                avg_cost_per_signup=("_cost_per_signup", "mean"),
+                avg_er_uplift=("_er_uplift", "mean"),
+                avg_views=("_views_24hr_num", "mean"),
+                avg_score=("_overall_score", "mean"),
+            ).reset_index()
+            g = g.sort_values("avg_score", ascending=False, na_position="last")
+            return g
+
+        def _segment_display(seg_df, label, first_col_name=None):
+            """Render a segment table — clean, scannable, best row highlighted.
+
+            Sorted by Overall Score desc (best first). Best row gets 🥇 + green bg.
+            """
+            if seg_df.empty:
+                st.info(f"No data for {label} segmentation.")
+                return
+            # Sort by Overall Score (desc). Fall back to ER uplift, then CPM.
+            if seg_df.get("avg_score", pd.Series(dtype=float)).notna().any():
+                sorted_df = seg_df.sort_values("avg_score", ascending=False, na_position="last")
+            elif seg_df["avg_er_uplift"].notna().any():
+                sorted_df = seg_df.sort_values("avg_er_uplift", ascending=False, na_position="last")
+            else:
+                sorted_df = seg_df.sort_values("avg_cpm", ascending=True, na_position="last")
+
+            seg_col = first_col_name or seg_df.columns[0]
+            # Find index of best row (highest Overall Score)
+            best_idx = None
+            if sorted_df.get("avg_score", pd.Series(dtype=float)).notna().any():
+                best_idx = sorted_df.index[sorted_df["avg_score"].notna()][0]
+            elif sorted_df["avg_er_uplift"].notna().any():
+                best_idx = sorted_df.index[sorted_df["avg_er_uplift"].notna()][0]
+
+            # Build HTML table (Score column first after segment name)
+            html = (
+                '<table style="width:100%; border-collapse:collapse; font-size:0.88em; margin-bottom:8px;">'
+                '<thead><tr style="background:#F3F4F6; color:#374151;">'
+                f'<th style="padding:10px 12px; text-align:left; border-bottom:2px solid #E5E7EB;">{label}</th>'
+                '<th style="padding:10px 12px; text-align:center; border-bottom:2px solid #E5E7EB;">#</th>'
+                '<th style="padding:10px 12px; text-align:right; border-bottom:2px solid #E5E7EB;">Score</th>'
+                '<th style="padding:10px 12px; text-align:right; border-bottom:2px solid #E5E7EB;">ER vs Baseline</th>'
+                '<th style="padding:10px 12px; text-align:right; border-bottom:2px solid #E5E7EB;">Avg Views</th>'
+                '<th style="padding:10px 12px; text-align:right; border-bottom:2px solid #E5E7EB;">Avg CPM</th>'
+                '</tr></thead><tbody>'
+            )
+
+            for i, (_, row) in enumerate(sorted_df.iterrows()):
+                is_best = (row.name == best_idx)
+                bg = "#ECFDF5" if is_best else ("#FAFBFC" if i % 2 else "#FFFFFF")
+                crown = "🥇 " if is_best else ""
+                name = f'{crown}{row[seg_col]}'
+
+                # Format metrics
+                n_val = int(row["n"]) if pd.notna(row.get("n")) else 0
+                score = row.get("avg_score")
+                if pd.isna(score):
+                    score_html = '<span style="color:#9CA3AF;">—</span>'
+                else:
+                    if score >= 70: score_color = "#059669"
+                    elif score >= 50: score_color = "#3B82F6"
+                    else: score_color = "#9CA3AF"
+                    score_html = f'<span style="color:{score_color}; font-weight:700;">{score:.0f}</span>'
+                er = row.get("avg_er_uplift")
+                if pd.isna(er):
+                    er_html = '<span style="color:#9CA3AF;">—</span>'
+                else:
+                    color = "#059669" if er >= 0 else "#DC2626"
+                    er_html = f'<span style="color:{color}; font-weight:600;">{er:+.1f}%</span>'
+                views = f"{int(row['avg_views']):,}" if pd.notna(row.get("avg_views")) else "—"
+                cpm = f"${row['avg_cpm']:.2f}" if pd.notna(row.get("avg_cpm")) else "—"
+
+                html += (
+                    f'<tr style="background:{bg}; border-bottom:1px solid #F3F4F6;">'
+                    f'<td style="padding:9px 12px; color:#1F2937; font-weight:{("600" if is_best else "500")};">{name}</td>'
+                    f'<td style="padding:9px 12px; text-align:center; color:#6B7280;">{n_val}</td>'
+                    f'<td style="padding:9px 12px; text-align:right;">{score_html}</td>'
+                    f'<td style="padding:9px 12px; text-align:right;">{er_html}</td>'
+                    f'<td style="padding:9px 12px; text-align:right; color:#6B7280;">{views}</td>'
+                    f'<td style="padding:9px 12px; text-align:right; color:#374151;">{cpm}</td>'
+                    f'</tr>'
+                )
+            html += '</tbody></table>'
+            st.markdown(html, unsafe_allow_html=True)
+
+        def _best_segment(seg_df, metric="avg_score", ascending=False):
+            """Pick the segment with the best value for a given metric (default: Overall Score)."""
+            if seg_df.empty or metric not in seg_df.columns:
+                return None
+            d = seg_df.dropna(subset=[metric])
+            if d.empty:
+                return None
+            d = d.sort_values(metric, ascending=ascending)
+            return d.iloc[0]
+
+
+        # Silent compute (used by Key Takeaways, re-referenced in display sections below)
+        fol_stats = _segment_stats(df_rep, "_follower_bucket")
+        ct_stats = _segment_stats(df_rep, "Content Type")
+        type_stats = _segment_stats(df_rep, "Type")
+        sen_stats = _segment_stats(df_rep, "Senority")
+        best_fol = _best_segment(fol_stats)
+        best_ct = _best_segment(ct_stats)
+        best_type = _best_segment(type_stats)
+        best_sen = _best_segment(sen_stats)
+        top_score = df_rep.dropna(subset=["_overall_score"]).sort_values("_overall_score", ascending=False).head(3)
+
         # ─── Executive Summary ────────────────────────────────────────
         st.subheader("📊 Executive Summary")
         # Campaign date range
@@ -1764,123 +2192,263 @@ elif nav == "Report":
         rm4.metric("Cost/Signup", f"${r_total_cost / r_total_signups:.2f}" if r_total_cost and r_total_signups else "N/A")
         rm5.metric("Avg CPM", f"${r_total_cost / r_total_views * 1000:.2f}" if r_total_cost and r_total_views else "N/A")
 
-        # ─── About Overall Score (collapsed by default) ──────────────
-        with st.expander("ℹ️ About Overall Score — how we rank influencers", expanded=False):
-            st.markdown("""
-**Formula:**
-```
-Overall Score =  0.30 × ER uplift percentile
-              +  0.40 × Views vs Avg percentile
-              +  0.30 × CPM percentile (reversed)
-```
-Output is 0–100. Each dimension is percentile-ranked within this campaign so different scales combine fairly.
+        # ─── Table of Contents (jump links) ──────────────────────────
+        st.markdown("""
+<div style="padding: 12px 16px; background: rgba(0,0,0,0.03); border-radius: 8px;
+            margin: 16px 0 20px; font-size: 13px; line-height: 1.9;">
+<strong style="color: #615d59; font-weight: 600; margin-right: 10px; font-size: 11px;
+        text-transform: uppercase; letter-spacing: 0.5px;">Jump to</strong>
+<a href="#key-takeaways" style="margin-right: 14px; color: #0075de; text-decoration: none; font-weight: 600;">💡 Key Takeaways</a>
+<a href="#top-performers" style="margin-right: 14px; color: #0075de; text-decoration: none;">🏆 Top Performers</a>
+<a href="#profile-breakdown" style="margin-right: 14px; color: #0075de; text-decoration: none;">👥 Profile</a>
+<a href="#what-worked-best" style="margin-right: 14px; color: #0075de; text-decoration: none;">📐 What Worked Best</a>
+<a href="#best-archetype" style="margin-right: 14px; color: #0075de; text-decoration: none;">🏅 Archetype</a>
+<a href="#performance-charts" style="margin-right: 14px; color: #0075de; text-decoration: none;">📈 Charts</a>
+<a href="#export" style="color: #0075de; text-decoration: none;">📥 Export</a>
+</div>
+""", unsafe_allow_html=True)
 
-**Why Views vs Avg instead of absolute Views?**
-Each influencer is compared to their OWN last-10-reels baseline, so Nano (<10K) and Macro (100K+) use the same yardstick.
-A Nano whose post beat their normal views by +50% scores the same as a Macro who did the same — fair across follower tiers.
+        # ─── Key Takeaways (moved to position 2 — most valuable insight block) ─
+        st.markdown("---")
+        st.markdown('<a name="key-takeaways"></a>', unsafe_allow_html=True)
+        st.subheader("💡 Key Takeaways")
 
-**Why not Cost/Signup?**
-UTM attribution is unreliable — most signups fall into organic. So we judge on three signals that we CAN measure well:
-ER uplift (content fit), Views vs Avg (reach lift), CPM (cost efficiency).
+        insights = []
+        overall_cpm = (r_total_cost / r_total_views * 1000) if r_total_cost and r_total_views else None
+        overall_cps = (r_total_cost / r_total_signups) if r_total_cost and r_total_signups else None
 
-**Weight rationale:**
-- **Views vs Avg 40%** — reach matters most, but only in relative terms
-- **ER uplift 30%** — did the content actually resonate with their audience?
-- **CPM 30%** — cost efficiency, keeps spend honest
-            """)
+        def _pct_diff(a, b):
+            if a is None or b is None or b == 0:
+                return None
+            return (a / b - 1) * 100
+
+        # 0. Top Overall Score winner (campaign MVP)
+        if not top_score.empty:
+            mvp = top_score.iloc[0]
+            insights.append(
+                f"🏆 **{mvp.get('Name', '(no name)')}** is this campaign's MVP with Overall Score "
+                f"{mvp['_overall_score']:.0f}, balancing content fit, reach lift, and cost efficiency."
+            )
+
+        # 1. Best follower bucket
+        if best_fol is not None and overall_cpm and pd.notna(best_fol.get("avg_cpm")):
+            diff = _pct_diff(best_fol["avg_cpm"], overall_cpm)
+            if diff is not None:
+                insights.append(
+                    f"**{best_fol['_follower_bucket']}** influencers delivered the best CPM at "
+                    f"${best_fol['avg_cpm']:.2f}, {abs(diff):.0f}% "
+                    f"{'below' if diff < 0 else 'above'} the overall average of ${overall_cpm:.2f}."
+                )
+        # 2. Best content type
+        if best_ct is not None and pd.notna(best_ct.get("avg_er_uplift")):
+            insights.append(
+                f'"**{best_ct["Content Type"]}**" content had the highest ER uplift: '
+                f'{best_ct["avg_er_uplift"]:+.1f}% average vs baseline (n={int(best_ct["n"])}).'
+            )
+        # 3. Best type
+        if best_type is not None and pd.notna(best_type.get("avg_cost_per_signup")) and overall_cps:
+            diff = _pct_diff(best_type["avg_cost_per_signup"], overall_cps)
+            if diff is not None:
+                insights.append(
+                    f"**{best_type['Type']}** influencers had the lowest Cost/Signup at "
+                    f"${best_type['avg_cost_per_signup']:.2f} — {abs(diff):.0f}% "
+                    f"{'below' if diff < 0 else 'above'} the overall ${overall_cps:.2f}."
+                )
+        # 4. Best seniority
+        if best_sen is not None and pd.notna(best_sen.get("avg_er_uplift")):
+            insights.append(
+                f"**{best_sen['Senority']}**-level influencers showed {best_sen['avg_er_uplift']:+.1f}% "
+                f"average ER uplift (n={int(best_sen['n'])})."
+            )
+        # 5. Recommendation
+        rec_parts = []
+        if best_fol is not None: rec_parts.append(best_fol["_follower_bucket"])
+        if best_ct is not None: rec_parts.append(f'"{best_ct["Content Type"]}"')
+        if rec_parts:
+            insights.append(
+                f"**Recommendation:** prioritize {' + '.join(rec_parts)} combinations "
+                f"for next campaign wave."
+            )
+
+        if insights:
+            for i, t in enumerate(insights, 1):
+                st.markdown(f"{i}. {t}")
+            st.caption(
+                "ℹ️ Overall Score weights ER uplift (30%), Views vs Avg (40%), and CPM (30%) — "
+                "we use these 3 because Cost/Signup via UTM attribution is unreliable "
+                "(most signups get bucketed as organic). See Methodology at the bottom."
+            )
+        else:
+            st.info("Not enough data for insights yet — fill in more campaign results.")
 
         # ─── Top Performers ──────────────────────────────────────────
+        st.markdown('<a name="top-performers"></a>', unsafe_allow_html=True)
         st.markdown("---")
         st.subheader("🏆 Top Performers")
 
-        def _top_card(name, poc, metric_label, metric_value, post_link, emphasize=False):
-            pc = poc_color(poc)
-            # Ensure URL has a scheme — otherwise browser treats it as relative
-            # and navigates within the Streamlit app
-            if post_link:
-                _link = post_link.strip()
-                if _link and not _link.lower().startswith(("http://", "https://")):
-                    _link = "https://" + _link.lstrip("/")
-                link_html = f'<a href="{_link}" target="_blank" rel="noopener noreferrer" style="color:#3B82F6; font-size:0.78em; text-decoration:none;">View post ↗</a>'
-            else:
-                link_html = ""
-            bg = "#FFFBEB" if emphasize else "#FAFBFC"
-            border = "#F59E0B" if emphasize else pc
-            return (
-                f'<div style="background:{bg}; border-radius:10px; padding:12px 14px; margin-bottom:8px; border-left:4px solid {border};">'
-                f'<div style="font-weight:600; color:#1F2937; font-size:0.95em;">{name or "(no name)"}</div>'
-                f'<div style="display:flex; align-items:center; gap:6px; font-size:0.78em; color:#6B7280; margin-top:2px;">'
-                f'<span style="width:7px; height:7px; border-radius:50%; background:{pc}; display:inline-block;"></span>{poc}</div>'
-                f'<div style="margin-top:6px; font-size:1.2em; font-weight:700; color:#1F2937;">{metric_value}</div>'
-                f'<div style="font-size:0.72em; color:#9CA3AF; text-transform:uppercase; letter-spacing:0.03em;">{metric_label}</div>'
-                f'<div style="margin-top:4px;">{link_html}</div>'
-                f'</div>'
-            )
+        _tp_cards, _tp_full = st.tabs(["Top 3 Cards", "Full Ranking"])
 
-        # Primary: Top 3 by Overall Score (the MVP ranking)
-        st.markdown("##### 🏆 Campaign MVPs (by Overall Score)")
-        st.caption("Composite score — see ℹ️ About Overall Score above for the formula")
-        top_score = df_rep.dropna(subset=["_overall_score"]).sort_values("_overall_score", ascending=False).head(3)
-        if top_score.empty:
-            st.info("No Overall Score data yet — need ER uplift, Views vs Avg, and CPM.")
-        else:
-            mvp_cols = st.columns(3)
-            for i, (_, r) in enumerate(top_score.iterrows()):
-                with mvp_cols[i]:
-                    st.markdown(_top_card(
-                        r.get("Name", ""), (r.get("POC") or "").strip(),
-                        "Overall Score", f"{r['_overall_score']:.0f}",
-                        (r.get("Post Link") or "").strip(),
-                        emphasize=True,
-                    ), unsafe_allow_html=True)
+        with _tp_cards:
 
-        st.markdown("##### By Individual Dimensions")
-        st.caption("Breakdowns if you want to dig into specific signals")
+            def _top_card(name, poc, metric_label, metric_value, post_link, emphasize=False):
+                pc = poc_color(poc)
+                # Ensure URL has a scheme — otherwise browser treats it as relative
+                # and navigates within the Streamlit app
+                if post_link:
+                    _link = post_link.strip()
+                    if _link and not _link.lower().startswith(("http://", "https://")):
+                        _link = "https://" + _link.lstrip("/")
+                    link_html = f'<a href="{_link}" target="_blank" rel="noopener noreferrer" style="color:#3B82F6; font-size:0.78em; text-decoration:none;">View post ↗</a>'
+                else:
+                    link_html = ""
+                bg = "#FFFBEB" if emphasize else "#FAFBFC"
+                border = "#F59E0B" if emphasize else pc
+                return (
+                    f'<div style="background:{bg}; border-radius:10px; padding:12px 14px; margin-bottom:8px; border-left:4px solid {border};">'
+                    f'<div style="font-weight:600; color:#1F2937; font-size:0.95em;">{name or "(no name)"}</div>'
+                    f'<div style="display:flex; align-items:center; gap:6px; font-size:0.78em; color:#6B7280; margin-top:2px;">'
+                    f'<span style="width:7px; height:7px; border-radius:50%; background:{pc}; display:inline-block;"></span>{poc}</div>'
+                    f'<div style="margin-top:6px; font-size:1.2em; font-weight:700; color:#1F2937;">{metric_value}</div>'
+                    f'<div style="font-size:0.72em; color:#9CA3AF; text-transform:uppercase; letter-spacing:0.03em;">{metric_label}</div>'
+                    f'<div style="margin-top:4px;">{link_html}</div>'
+                    f'</div>'
+                )
 
-        tp_col1, tp_col2, tp_col3 = st.columns(3)
-        # Top 3 by ER vs Baseline
-        with tp_col1:
-            st.markdown("**🎯 By ER vs Baseline**")
-            st.caption("Highest content resonance")
-            top_er = df_rep.dropna(subset=["_er_uplift"]).sort_values("_er_uplift", ascending=False).head(3)
-            if top_er.empty:
-                st.info("No ER data yet.")
+            # Primary: Top 3 by Overall Score (the MVP ranking)
+            st.markdown("##### 🏆 Campaign MVPs (by Overall Score)")
+            st.caption("Composite score — see ℹ️ About Overall Score above for the formula")
+            top_score = df_rep.dropna(subset=["_overall_score"]).sort_values("_overall_score", ascending=False).head(3)
+            if top_score.empty:
+                st.info("No Overall Score data yet — need ER uplift, Views vs Avg, and CPM.")
             else:
-                for _, r in top_er.iterrows():
-                    st.markdown(_top_card(
-                        r.get("Name", ""), (r.get("POC") or "").strip(),
-                        "ER vs Baseline", f"{r['_er_uplift']:+.1f}%",
-                        (r.get("Post Link") or "").strip(),
-                    ), unsafe_allow_html=True)
-        # Top 3 by 24hr Views
-        with tp_col2:
-            st.markdown("**👁️ By 24hr Views**")
-            st.caption("Highest absolute reach")
-            top_v = df_rep.dropna(subset=["_views_24hr_num"]).sort_values("_views_24hr_num", ascending=False).head(3)
-            if top_v.empty:
-                st.info("No views data yet.")
-            else:
-                for _, r in top_v.iterrows():
-                    st.markdown(_top_card(
-                        r.get("Name", ""), (r.get("POC") or "").strip(),
-                        "24hr Views", f"{int(r['_views_24hr_num']):,}",
-                        (r.get("Post Link") or "").strip(),
-                    ), unsafe_allow_html=True)
-        # Top 3 by CPM (lowest first)
-        with tp_col3:
-            st.markdown("**💰 By CPM (lowest)**")
-            st.caption("Most cost-efficient reach")
-            top_cpm = df_rep.dropna(subset=["_cpm"]).sort_values("_cpm", ascending=True).head(3)
-            if top_cpm.empty:
-                st.info("No CPM data yet.")
-            else:
-                for _, r in top_cpm.iterrows():
-                    st.markdown(_top_card(
-                        r.get("Name", ""), (r.get("POC") or "").strip(),
-                        "CPM", f"${r['_cpm']:.2f}",
-                        (r.get("Post Link") or "").strip(),
-                    ), unsafe_allow_html=True)
+                mvp_cols = st.columns(3)
+                for i, (_, r) in enumerate(top_score.iterrows()):
+                    with mvp_cols[i]:
+                        st.markdown(_top_card(
+                            r.get("Name", ""), (r.get("POC") or "").strip(),
+                            "Overall Score", f"{r['_overall_score']:.0f}",
+                            (r.get("Post Link") or "").strip(),
+                            emphasize=True,
+                        ), unsafe_allow_html=True)
 
+            st.markdown("##### By Individual Dimensions")
+            st.caption("Breakdowns if you want to dig into specific signals")
+
+            tp_col1, tp_col2, tp_col3 = st.columns(3)
+            # Top 3 by ER vs Baseline
+            with tp_col1:
+                st.markdown("**🎯 By ER vs Baseline**")
+                st.caption("Highest content resonance")
+                top_er = df_rep.dropna(subset=["_er_uplift"]).sort_values("_er_uplift", ascending=False).head(3)
+                if top_er.empty:
+                    st.info("No ER data yet.")
+                else:
+                    for _, r in top_er.iterrows():
+                        st.markdown(_top_card(
+                            r.get("Name", ""), (r.get("POC") or "").strip(),
+                            "ER vs Baseline", f"{r['_er_uplift']:+.1f}%",
+                            (r.get("Post Link") or "").strip(),
+                        ), unsafe_allow_html=True)
+            # Top 3 by 24hr Views
+            with tp_col2:
+                st.markdown("**👁️ By 24hr Views**")
+                st.caption("Highest absolute reach")
+                top_v = df_rep.dropna(subset=["_views_24hr_num"]).sort_values("_views_24hr_num", ascending=False).head(3)
+                if top_v.empty:
+                    st.info("No views data yet.")
+                else:
+                    for _, r in top_v.iterrows():
+                        st.markdown(_top_card(
+                            r.get("Name", ""), (r.get("POC") or "").strip(),
+                            "24hr Views", f"{int(r['_views_24hr_num']):,}",
+                            (r.get("Post Link") or "").strip(),
+                        ), unsafe_allow_html=True)
+            # Top 3 by CPM (lowest first)
+            with tp_col3:
+                st.markdown("**💰 By CPM (lowest)**")
+                st.caption("Most cost-efficient reach")
+                top_cpm = df_rep.dropna(subset=["_cpm"]).sort_values("_cpm", ascending=True).head(3)
+                if top_cpm.empty:
+                    st.info("No CPM data yet.")
+                else:
+                    for _, r in top_cpm.iterrows():
+                        st.markdown(_top_card(
+                            r.get("Name", ""), (r.get("POC") or "").strip(),
+                            "CPM", f"${r['_cpm']:.2f}",
+                            (r.get("Post Link") or "").strip(),
+                        ), unsafe_allow_html=True)
+
+
+
+        with _tp_full:
+            # Select only the columns we'll use — avoids duplicate names when
+            # renaming (df_rep has BOTH "24hr Views" string col AND _views_24hr_num
+            # numeric col; renaming the latter would collide with the former).
+            _perf_cols = ["Name", "POC", "Post Link", "Content Type", "Type",
+                          "Senority", "Job Function",
+                          "_price_num", "_views_24hr_num", "_signups_num",
+                          "_avg_impressions_num", "_post_er_num", "_baseline_er_num",
+                          "_cpm", "_cost_per_signup", "_views_vs_avg",
+                          "_er_uplift", "_overall_score"]
+            _perf_available = [c for c in _perf_cols if c in df_rep.columns]
+            _perf = df_rep[df_rep["_price_num"].notna()][_perf_available].copy()
+            if not _perf.empty:
+                # Reuse df_rep's pre-computed columns (no need to recompute).
+                # Use pd.to_numeric(errors="coerce") to guard against Python 3.14's
+                # stricter round() that rejects None.
+                _perf["Score"] = pd.to_numeric(_perf["_overall_score"], errors="coerce").round(0)
+                _perf["CPM ($)"] = pd.to_numeric(_perf["_cpm"], errors="coerce").round(2)
+                _perf["Cost/Signup ($)"] = pd.to_numeric(_perf["_cost_per_signup"], errors="coerce").round(2)
+                _perf["Views vs Avg %"] = pd.to_numeric(_perf["_views_vs_avg"], errors="coerce").round(1)
+                _perf["ER vs Baseline %"] = pd.to_numeric(_perf["_er_uplift"], errors="coerce").round(1)
+                # Drop the numeric helpers to avoid confusion in the final display
+                _perf = _perf.drop(columns=[c for c in ["_cpm", "_cost_per_signup",
+                                                         "_views_vs_avg", "_er_uplift",
+                                                         "_overall_score"]
+                                            if c in _perf.columns])
+                _perf = _perf.rename(columns={
+                    "_price_num": "Cost ($)",
+                    "_views_24hr_num": "24hr Views",
+                    "_signups_num": "Signups",
+                    "Senority": "Seniority",
+                    "_avg_impressions_num": "Avg Views",
+                    "_post_er_num": "Post ER",
+                    "_baseline_er_num": "Baseline ER",
+                })
+
+                _sort_mode = st.pills(
+                    "Sort by",
+                    ["By Overall Score", "By CPM (best value)", "By 24hr Views"],
+                    default="By Overall Score",
+                    key="rep_perf_sort",
+                )
+                if _sort_mode == "By 24hr Views":
+                    _perf_sorted = _perf.sort_values("24hr Views", ascending=False, na_position="last")
+                elif _sort_mode == "By CPM (best value)":
+                    _perf_sorted = _perf.sort_values("CPM ($)", ascending=True, na_position="last")
+                else:
+                    _perf_sorted = _perf.sort_values("Score", ascending=False, na_position="last")
+
+                _perf_display_order = ["Name", "POC", "Score", "Content Type", "Type", "Seniority", "Job Function",
+                                       "Cost ($)", "24hr Views", "Avg Views", "Views vs Avg %",
+                                       "Post ER", "Baseline ER", "ER vs Baseline %",
+                                       "Signups", "CPM ($)", "Cost/Signup ($)", "Post Link"]
+                _perf_display_order = [c for c in _perf_display_order if c in _perf_sorted.columns]
+                st.dataframe(
+                    _perf_sorted[_perf_display_order],
+                    use_container_width=True, hide_index=True,
+                    column_config={
+                        "Post Link": st.column_config.LinkColumn("Post Link"),
+                        "Score": st.column_config.NumberColumn("Score", format="%.0f",
+                            help="0-100 composite: 30% ER uplift + 40% Views vs Avg + 30% CPM"),
+                        "Views vs Avg %": st.column_config.NumberColumn("Views vs Avg %", format="%+.1f%%"),
+                        "ER vs Baseline %": st.column_config.NumberColumn("ER vs Baseline %", format="%+.1f%%"),
+                        "Post ER": st.column_config.NumberColumn("Post ER", format="%.2f%%"),
+                        "Baseline ER": st.column_config.NumberColumn("Baseline ER", format="%.2f%%"),
+                    },
+                )
+            else:
+                st.info("Performance data will appear after cost and views/signups are entered.")
         # ─── Segment Analysis Helper ─────────────────────────────────
         def _segment_stats(df, by_col, label=None):
             """Aggregate per-segment metrics. Returns DataFrame sorted by Avg CPM."""
@@ -1979,6 +2547,7 @@ ER uplift (content fit), Views vs Avg (reach lift), CPM (cost efficiency).
 
         # ─── Profile Breakdown (campaign composition) ────────────────
         st.markdown("---")
+        st.markdown('<a name="profile-breakdown"></a>', unsafe_allow_html=True)
         st.subheader("👥 Profile Breakdown")
         st.caption("What this campaign looked like — distribution across audience dimensions.")
         _bd1, _bd2, _bd3 = st.columns(3)
@@ -2097,102 +2666,31 @@ ER uplift (content fit), Views vs Avg (reach lift), CPM (cost efficiency).
 
         # ─── Segment Analysis — 4 dimensions ──────────────────────────
         st.markdown("---")
+        st.markdown('<a name="what-worked-best"></a>', unsafe_allow_html=True)
         st.subheader("📐 What Worked Best")
         st.caption("Each table compares how different segments performed. 🥇 marks the best segment (highest Avg Overall Score). Sorted by Score descending.")
 
-        st.markdown("##### By Followers Size")
-        st.caption("🥇 best performer within each tier — use this when sourcing the next round of same-size influencers")
-        fol_stats = _segment_stats(df_rep, "_follower_bucket")
-        _segment_display(fol_stats, "Followers", first_col_name="_follower_bucket")
-
-        st.markdown("##### By Content Hook")
-        ct_stats = _segment_stats(df_rep, "Content Type")
-        _segment_display(ct_stats, "Content Type", first_col_name="Content Type")
-
-        st.markdown("##### By Influencer Type")
-        type_stats = _segment_stats(df_rep, "Type")
-        _segment_display(type_stats, "Type", first_col_name="Type")
-
-        st.markdown("##### By Seniority")
-        sen_stats = _segment_stats(df_rep, "Senority")
-        _segment_display(sen_stats, "Seniority", first_col_name="Senority")
-
-        # ─── Performance Ranking (full table, sortable) ──────────────
-        st.markdown("---")
-        st.subheader("🏁 Performance Ranking")
-        st.caption("Every post ranked. Overall Score = 30% ER uplift + 40% Views vs Avg + 30% CPM (reversed).")
-
-        # Select only the columns we'll use — avoids duplicate names when
-        # renaming (df_rep has BOTH "24hr Views" string col AND _views_24hr_num
-        # numeric col; renaming the latter would collide with the former).
-        _perf_cols = ["Name", "POC", "Post Link", "Content Type", "Type",
-                      "Senority", "Job Function",
-                      "_price_num", "_views_24hr_num", "_signups_num",
-                      "_avg_impressions_num", "_post_er_num", "_baseline_er_num",
-                      "_cpm", "_cost_per_signup", "_views_vs_avg",
-                      "_er_uplift", "_overall_score"]
-        _perf_available = [c for c in _perf_cols if c in df_rep.columns]
-        _perf = df_rep[df_rep["_price_num"].notna()][_perf_available].copy()
-        if not _perf.empty:
-            # Reuse df_rep's pre-computed columns (no need to recompute).
-            # Use pd.to_numeric(errors="coerce") to guard against Python 3.14's
-            # stricter round() that rejects None.
-            _perf["Score"] = pd.to_numeric(_perf["_overall_score"], errors="coerce").round(0)
-            _perf["CPM ($)"] = pd.to_numeric(_perf["_cpm"], errors="coerce").round(2)
-            _perf["Cost/Signup ($)"] = pd.to_numeric(_perf["_cost_per_signup"], errors="coerce").round(2)
-            _perf["Views vs Avg %"] = pd.to_numeric(_perf["_views_vs_avg"], errors="coerce").round(1)
-            _perf["ER vs Baseline %"] = pd.to_numeric(_perf["_er_uplift"], errors="coerce").round(1)
-            # Drop the numeric helpers to avoid confusion in the final display
-            _perf = _perf.drop(columns=[c for c in ["_cpm", "_cost_per_signup",
-                                                     "_views_vs_avg", "_er_uplift",
-                                                     "_overall_score"]
-                                        if c in _perf.columns])
-            _perf = _perf.rename(columns={
-                "_price_num": "Cost ($)",
-                "_views_24hr_num": "24hr Views",
-                "_signups_num": "Signups",
-                "Senority": "Seniority",
-                "_avg_impressions_num": "Avg Views",
-                "_post_er_num": "Post ER",
-                "_baseline_er_num": "Baseline ER",
-            })
-
-            _sort_mode = st.pills(
-                "Sort by",
-                ["By Overall Score", "By CPM (best value)", "By 24hr Views"],
-                default="By Overall Score",
-                key="rep_perf_sort",
-            )
-            if _sort_mode == "By 24hr Views":
-                _perf_sorted = _perf.sort_values("24hr Views", ascending=False, na_position="last")
-            elif _sort_mode == "By CPM (best value)":
-                _perf_sorted = _perf.sort_values("CPM ($)", ascending=True, na_position="last")
-            else:
-                _perf_sorted = _perf.sort_values("Score", ascending=False, na_position="last")
-
-            _perf_display_order = ["Name", "POC", "Score", "Content Type", "Type", "Seniority", "Job Function",
-                                   "Cost ($)", "24hr Views", "Avg Views", "Views vs Avg %",
-                                   "Post ER", "Baseline ER", "ER vs Baseline %",
-                                   "Signups", "CPM ($)", "Cost/Signup ($)", "Post Link"]
-            _perf_display_order = [c for c in _perf_display_order if c in _perf_sorted.columns]
-            st.dataframe(
-                _perf_sorted[_perf_display_order],
-                use_container_width=True, hide_index=True,
-                column_config={
-                    "Post Link": st.column_config.LinkColumn("Post Link"),
-                    "Score": st.column_config.NumberColumn("Score", format="%.0f",
-                        help="0-100 composite: 30% ER uplift + 40% Views vs Avg + 30% CPM"),
-                    "Views vs Avg %": st.column_config.NumberColumn("Views vs Avg %", format="%+.1f%%"),
-                    "ER vs Baseline %": st.column_config.NumberColumn("ER vs Baseline %", format="%+.1f%%"),
-                    "Post ER": st.column_config.NumberColumn("Post ER", format="%.2f%%"),
-                    "Baseline ER": st.column_config.NumberColumn("Baseline ER", format="%.2f%%"),
-                },
-            )
-        else:
-            st.info("Performance data will appear after cost and views/signups are entered.")
+        # 4 dimensions as tabs — click to switch instead of stacking all 4
+        _ww_fol, _ww_ct, _ww_type, _ww_sen = st.tabs([
+            "By Followers Size", "By Content Hook", "By Influencer Type", "By Seniority",
+        ])
+        with _ww_fol:
+            st.caption("🥇 best performer within each tier — use this when sourcing the next round of same-size influencers")
+            fol_stats = _segment_stats(df_rep, "_follower_bucket")
+            _segment_display(fol_stats, "Followers", first_col_name="_follower_bucket")
+        with _ww_ct:
+            ct_stats = _segment_stats(df_rep, "Content Type")
+            _segment_display(ct_stats, "Content Type", first_col_name="Content Type")
+        with _ww_type:
+            type_stats = _segment_stats(df_rep, "Type")
+            _segment_display(type_stats, "Type", first_col_name="Type")
+        with _ww_sen:
+            sen_stats = _segment_stats(df_rep, "Senority")
+            _segment_display(sen_stats, "Seniority", first_col_name="Senority")
 
         # ─── Best Archetype ──────────────────────────────────────────
         st.markdown("---")
+        st.markdown('<a name="best-archetype"></a>', unsafe_allow_html=True)
         st.subheader("🏅 Best Archetype")
 
         def _best_segment(seg_df, metric="avg_score", ascending=False):
@@ -2234,80 +2732,9 @@ ER uplift (content fit), Views vs Avg (reach lift), CPM (cost efficiency).
         else:
             st.info("Not enough data to compute best archetype.")
 
-        # ─── Auto-Generated Insights ─────────────────────────────────
-        st.markdown("---")
-        st.subheader("💡 Key Takeaways")
-
-        insights = []
-        overall_cpm = (r_total_cost / r_total_views * 1000) if r_total_cost and r_total_views else None
-        overall_cps = (r_total_cost / r_total_signups) if r_total_cost and r_total_signups else None
-
-        def _pct_diff(a, b):
-            if a is None or b is None or b == 0:
-                return None
-            return (a / b - 1) * 100
-
-        # 0. Top Overall Score winner (campaign MVP)
-        if not top_score.empty:
-            mvp = top_score.iloc[0]
-            insights.append(
-                f"🏆 **{mvp.get('Name', '(no name)')}** is this campaign's MVP with Overall Score "
-                f"{mvp['_overall_score']:.0f}, balancing content fit, reach lift, and cost efficiency."
-            )
-
-        # 1. Best follower bucket
-        if best_fol is not None and overall_cpm and pd.notna(best_fol.get("avg_cpm")):
-            diff = _pct_diff(best_fol["avg_cpm"], overall_cpm)
-            if diff is not None:
-                insights.append(
-                    f"**{best_fol['_follower_bucket']}** influencers delivered the best CPM at "
-                    f"${best_fol['avg_cpm']:.2f}, {abs(diff):.0f}% "
-                    f"{'below' if diff < 0 else 'above'} the overall average of ${overall_cpm:.2f}."
-                )
-        # 2. Best content type
-        if best_ct is not None and pd.notna(best_ct.get("avg_er_uplift")):
-            insights.append(
-                f'"**{best_ct["Content Type"]}**" content had the highest ER uplift: '
-                f'{best_ct["avg_er_uplift"]:+.1f}% average vs baseline (n={int(best_ct["n"])}).'
-            )
-        # 3. Best type
-        if best_type is not None and pd.notna(best_type.get("avg_cost_per_signup")) and overall_cps:
-            diff = _pct_diff(best_type["avg_cost_per_signup"], overall_cps)
-            if diff is not None:
-                insights.append(
-                    f"**{best_type['Type']}** influencers had the lowest Cost/Signup at "
-                    f"${best_type['avg_cost_per_signup']:.2f} — {abs(diff):.0f}% "
-                    f"{'below' if diff < 0 else 'above'} the overall ${overall_cps:.2f}."
-                )
-        # 4. Best seniority
-        if best_sen is not None and pd.notna(best_sen.get("avg_er_uplift")):
-            insights.append(
-                f"**{best_sen['Senority']}**-level influencers showed {best_sen['avg_er_uplift']:+.1f}% "
-                f"average ER uplift (n={int(best_sen['n'])})."
-            )
-        # 5. Recommendation
-        rec_parts = []
-        if best_fol is not None: rec_parts.append(best_fol["_follower_bucket"])
-        if best_ct is not None: rec_parts.append(f'"{best_ct["Content Type"]}"')
-        if rec_parts:
-            insights.append(
-                f"**Recommendation:** prioritize {' + '.join(rec_parts)} combinations "
-                f"for next campaign wave."
-            )
-
-        if insights:
-            for i, t in enumerate(insights, 1):
-                st.markdown(f"{i}. {t}")
-            st.caption(
-                "ℹ️ Overall Score weights ER uplift (30%), Views vs Avg (40%), and CPM (30%) — "
-                "we use these 3 because Cost/Signup via UTM attribution is unreliable "
-                "(most signups get bucketed as organic). See ℹ️ About Overall Score at the top."
-            )
-        else:
-            st.info("Not enough data for insights yet — fill in more campaign results.")
-
         # ─── Performance Charts (scatter) ─────────────────────────────
         st.markdown("---")
+        st.markdown('<a name="performance-charts"></a>', unsafe_allow_html=True)
         st.subheader("📈 Performance Charts")
         pc1, pc2 = st.columns(2)
         with pc1:
@@ -2323,6 +2750,7 @@ ER uplift (content fit), Views vs Avg (reach lift), CPM (cost efficiency).
 
         # ─── CSV Export ──────────────────────────────────────────────
         st.markdown("---")
+        st.markdown('<a name="export"></a>', unsafe_allow_html=True)
         st.subheader("📥 Export")
 
         # Build consolidated CSV
@@ -2371,3 +2799,29 @@ ER uplift (content fit), Views vs Avg (reach lift), CPM (cost efficiency).
             file_name=f"report_{selected_tag_str.replace(' ', '_')}.csv", mime="text/csv",
             use_container_width=True,
         )
+
+        # ─── Methodology Appendix (reference only, at bottom) ────────
+        st.markdown("---")
+        with st.expander("ℹ️ Methodology — about Overall Score", expanded=False):
+            st.markdown("""
+**Formula:**
+```
+Overall Score =  0.30 × ER uplift percentile
+              +  0.40 × Views vs Avg percentile
+              +  0.30 × CPM percentile (reversed)
+```
+Output is 0–100. Each dimension is percentile-ranked within this campaign so different scales combine fairly.
+
+**Why Views vs Avg instead of absolute Views?**
+Each influencer is compared to their OWN last-10-reels baseline, so Nano (<10K) and Macro (100K+) use the same yardstick.
+A Nano whose post beat their normal views by +50% scores the same as a Macro who did the same — fair across follower tiers.
+
+**Why not Cost/Signup?**
+UTM attribution is unreliable — most signups fall into organic. So we judge on three signals that we CAN measure well:
+ER uplift (content fit), Views vs Avg (reach lift), CPM (cost efficiency).
+
+**Weight rationale:**
+- **Views vs Avg 40%** — reach matters most, but only in relative terms
+- **ER uplift 30%** — did the content actually resonate with their audience?
+- **CPM 30%** — cost efficiency, keeps spend honest
+            """)
