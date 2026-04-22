@@ -98,17 +98,34 @@ def _retry(fn, retries=3):
 
 
 def ensure_new_columns(ws):
-    """Add AB-AO headers if they don't exist yet.
+    """Ensure Sheet grid has at least 41 columns AND headers AB-AO are set.
 
-    Fail-soft: if the Sheet API call fails (rate limit, auth hiccup, etc.),
-    log a warning and continue. Headers are nearly always already present in
-    practice — this is a defensive one-time migration helper, not required
-    for dashboard to function.
+    The prior version only wrote header values, but if the Sheet's physical grid
+    was still 40 cols (e.g. created before AO was introduced), writes to AO
+    silently failed with "exceeds grid limits" — blocking the reply-rate sync.
+
+    Two steps:
+    1. Resize grid if col_count < 41 (expands the Sheet to fit AO).
+    2. Set header values in any missing/empty cell in row 1 (columns 26-41).
+
+    Fail-soft: if either step errors, log and continue (dashboard can still
+    load; writes to missing columns will fail loudly at call sites).
     """
     try:
+        # Step 1: ensure the physical grid has enough columns
+        current_cols = ws.col_count
+        if current_cols < 41:
+            print(f"ℹ️ ensure_new_columns: resizing grid from {current_cols} → 41 columns")
+            _retry(lambda: ws.add_cols(41 - current_cols))
+
+        # Step 2: set missing header values
         row1 = ws.row_values(1)
-        if len(row1) >= 41:
-            return  # already have all columns
+        if len(row1) >= 41 and all(
+            row1[col_idx - 1].strip()
+            for col_idx in NEW_HEADERS
+            if col_idx - 1 < len(row1)
+        ):
+            return  # all headers already set
         cells = []
         for col_idx, header in NEW_HEADERS.items():
             if len(row1) < col_idx or (len(row1) >= col_idx and not row1[col_idx - 1].strip()):
@@ -116,7 +133,6 @@ def ensure_new_columns(ws):
         if cells:
             _retry(lambda: ws.update_cells(cells))
     except Exception as e:
-        # Don't block dashboard load — headers almost certainly exist already.
         print(f"⚠️ ensure_new_columns skipped: {e}")
 
 

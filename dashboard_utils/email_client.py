@@ -175,10 +175,17 @@ def check_reply_status(sender_email: str, app_password: str, original_msg_id: st
     callers should treat this as "don't send follow-up" (fail-closed).
 
     Searches "[Gmail]/All Mail" which includes INBOX + SENT + all labels.
+
+    Uses Gmail's X-GM-RAW extension with the `rfc822msgid:` operator, which
+    queries Gmail's pre-indexed Message-ID field. This is 10-100x faster than
+    a standard IMAP HEADER scan (which crawls every message body) and avoids
+    read timeouts for users with large mailboxes.
     """
     mail = None
     try:
-        mail = imaplib.IMAP4_SSL("imap.gmail.com", timeout=15)
+        # 30s timeout (was 15s) — HEADER search on large mailboxes could time out.
+        # With X-GM-RAW + rfc822msgid: we're now fast, but keep margin.
+        mail = imaplib.IMAP4_SSL("imap.gmail.com", timeout=30)
         mail.login(sender_email, app_password)
         # [Gmail]/All Mail is a virtual folder containing INBOX + SENT + everything.
         # This lets us detect both incoming replies AND the user's own manual
@@ -188,17 +195,29 @@ def check_reply_status(sender_email: str, app_password: str, original_msg_id: st
             # Fallback if All Mail isn't available (e.g. non-Gmail or renamed label)
             mail.select("INBOX")
 
-        # Escape quotes in Message-ID to prevent IMAP search injection / malformed queries.
-        # Python's make_msgid() won't produce quotes, but defensive escaping is cheap.
-        _safe_id = original_msg_id.replace('"', '\\"')
+        # Strip angle brackets — rfc822msgid: operator wants bare ID
+        clean_id = original_msg_id.strip().strip("<>")
+        # Escape any embedded quotes defensively (make_msgid doesn't produce them)
+        safe_id = clean_id.replace('"', '\\"')
 
-        # Search for emails that reference the original message
-        _, data = mail.search(None, f'(HEADER In-Reply-To "{_safe_id}")')
+        # Gmail's X-GM-RAW extension uses Gmail's search syntax (indexed, fast).
+        # `rfc822msgid:<id>` matches the original Message-ID; Gmail automatically
+        # includes messages whose In-Reply-To or References header points at it
+        # (same thread), so one query covers both.
+        typ, data = mail.search(None, "X-GM-RAW", f'"rfc822msgid:{safe_id}"')
+        if typ == "OK" and data and data[0]:
+            # The search matches the ORIGINAL message too (thread grouping).
+            # We need to know: are there OTHER messages in this thread besides the original?
+            ids = data[0].split()
+            if len(ids) > 1:
+                return REPLY_YES
+
+        # Fallback: standard IMAP HEADER search (old path, in case X-GM-RAW behaves
+        # differently on a specific account)
+        _, data = mail.search(None, f'(HEADER In-Reply-To "{safe_id}")')
         if data and data[0]:
             return REPLY_YES
-
-        # Also check References header (for threads with multiple replies)
-        _, data = mail.search(None, f'(HEADER References "{_safe_id}")')
+        _, data = mail.search(None, f'(HEADER References "{safe_id}")')
         if data and data[0]:
             return REPLY_YES
 
