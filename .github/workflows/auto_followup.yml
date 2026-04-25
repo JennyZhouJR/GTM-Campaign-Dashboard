@@ -1,10 +1,18 @@
-name: Auto Follow-Up Emails
+name: Auto Follow-Up Emails (DISABLED — moved to Jobright-Campaign-Dashboard)
+
+# ⚠️ DISABLED 2026-04-25
+#
+# The canonical version of this cron now lives in the new dashboard repo:
+#   https://github.com/JennyZhouJR/Jobright-Campaign-Dashboard
+#   .github/workflows/auto_followup.yml
+#
+# This file is kept (workflow_dispatch only) so we can manually fall back
+# to running it from this repo if the new one breaks for some reason.
+# The `schedule:` cron has been removed so it won't auto-fire — only the
+# new repo runs daily.
 
 on:
-  schedule:
-    # Run daily at 9am EST (2pm UTC)
-    - cron: '0 14 * * *'
-  workflow_dispatch:
+  workflow_dispatch:  # manual rollback trigger only — no automatic cron
 
 jobs:
   followup:
