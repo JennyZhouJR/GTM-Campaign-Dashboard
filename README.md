@@ -1,50 +1,66 @@
-# GTM Campaign Dashboard (DEPRECATED)
+# GTM Influencer Sourcing Pipeline
 
-> 🛑 **This repository is deprecated and archived as of 2026-04-30.**
+Instagram influencer sourcing pipeline for the Jobright GTM team. Processes
+NanoInf CSV/XLSX exports through automated filtering, Apify enrichment,
+deduplication, and writes qualified accounts to a shared Google Sheet.
 
-The Streamlit-based GTM Campaign Dashboard has been retired. All functionality
-has been migrated to a new Next.js + FastAPI implementation:
+> **Note:** This repository previously also hosted the Streamlit Campaign
+> Dashboard. That dashboard was migrated to
+> [`JennyZhouJR/Jobright-Campaign-Dashboard`](https://github.com/JennyZhouJR/Jobright-Campaign-Dashboard)
+> (Next.js + FastAPI on Railway) and retired here on 2026-04-30. The last
+> commit that contained dashboard code is tagged `v1.0.0-final`.
 
-**👉 New repository:** https://github.com/JennyZhouJR/Jobright-Campaign-Dashboard
+## What's in this repo
 
-The new dashboard runs on Railway with the same Google Sheet as the source of
-truth. Both the per-post views Apify cron (`sync_views.yml`) and the Gmail
-auto-follow-up cron (`auto_followup.yml`) now live in that repo.
-
-## Why deprecated
-
-- Streamlit's UI primitives didn't scale once the team needed multi-tab
-  navigation, inline-editable tables, and auth-gated Gmail send flows.
-- Railway blocks outbound SMTP, so we standardized on the Gmail API for
-  interactive sends in the new dashboard. The auto-follow-up cron stays on
-  GitHub Actions (which doesn't block SMTP) — but it now lives in the new repo
-  with one extra POC password (`GMAIL_FALIDA_PASSWORD`) that this old workflow
-  never carried.
-- Cleaner type-safety, faster iteration, and a single deploy surface.
-
-## What was migrated
-
-| Old (this repo) | New (Jobright-Campaign-Dashboard) |
+| File / folder | Purpose |
 |---|---|
-| `dashboard.py` (Streamlit) | `frontend/` (Next.js 16 + Tailwind 4) |
-| `dashboard_utils/*` | `backend/dashboard_utils/*` (FastAPI) |
-| `auto_followup.py` + cron | `backend/auto_followup.py` + same cron |
-| `sync_views.py` + cron | `backend/sync_views.py` + same cron |
+| `influencer_pipeline.py` | Main script — reads inputs, filters by rules, scrapes via Apify, writes to Sheet |
+| `rules.txt` | Filter rules document (V1.2). Keyword exclusions, follower ranges, ER thresholds, etc. Read by the script and humans. |
+| `.claude/skills/influencer-pipeline/SKILL.md` | Claude Code skill definition — gives Claude context to run the pipeline on demand |
+| `requirements.txt` | Python dependencies |
+| `dao/` (gitignored) | Google service account credentials |
+| `input_csvs/` (gitignored) | Drop new NanoInf exports here |
+| `output/` (gitignored) | Per-run CSV backups of qualified rows |
+| `archived/` (gitignored) | Processed input files (auto-moved by the script) |
+| `.env` (gitignored) | Apify API token (`APIFY_API_TOKEN=...`) |
 
-## Final state
+## Running the pipeline
 
-- Final release tagged: `v1.0.0-final`
-- Both GitHub Actions workflows disabled 2026-04-25, deleted 2026-04-30
-- Streamlit Cloud deployment retired 2026-04-30
+```bash
+# Install dependencies (one-time)
+pip install -r requirements.txt
 
-## If you need to roll back
+# Drop new exports into input_csvs/ then:
+python influencer_pipeline.py
+```
 
-In the unlikely event the new dashboard is unavailable and the team needs the
-old Streamlit version back temporarily:
+Or via Claude Code:
 
-1. Un-archive this repo via GitHub Settings → Archives → Unarchive
-2. Restore the workflow files from history: `git show v1.0.0-final:.github/workflows/auto_followup.yml > .github/workflows/auto_followup.yml`
-3. Run `streamlit run dashboard.py` locally, or redeploy to Streamlit Cloud
-4. Re-archive when no longer needed
+> "跑一下 pipeline" / "run the pipeline" — the `influencer-pipeline` skill
+> handles invocation, log monitoring, and result summary.
 
-For active development, only the new repo accepts changes.
+## Outputs
+
+- **Google Sheet** — qualified rows appended to the team's shared sourcing tab
+- **`output/output_<input>_<timestamp>.csv`** — local backup of each run
+
+## Filter rules at a glance
+
+See `rules.txt` for the canonical list. Summary:
+
+- Follower range (configurable, currently nano/micro tiers)
+- Country whitelist (US, CA)
+- Language detection on bio + recent captions
+- Keyword exclusions (industries, account types — see rules.txt §3)
+- Bio role exclusion (founder / CEO / etc. checked against Apify bio, not just CSV fields)
+- Engagement rate threshold against follower-bucket baseline
+
+## Apify dependency
+
+The pipeline scrapes live profile + recent posts via the
+[`apify/instagram-scraper`](https://apify.com/apify/instagram-scraper) actor.
+`APIFY_API_TOKEN` must be set in `.env`.
+
+## Related repos
+
+- [`JennyZhouJR/Jobright-Campaign-Dashboard`](https://github.com/JennyZhouJR/Jobright-Campaign-Dashboard) — the campaign management dashboard (post-confirm flow). Confirmed influencers from this sourcing pipeline get tracked there.
